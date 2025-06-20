@@ -1,0 +1,30 @@
+name = "secure-share-api"
+main = "src/worker.ts"
+compatibility_date = "2024-06-20"
+
+[env.development]
+name = "secure-share-api-dev"
+
+[env.production]
+name = "secure-share-api"
+
+# R2 Bucket binding
+[[r2_buckets]]
+binding = "SECURE_SHARE_BUCKET"
+bucket_name = "secure-share-files"
+
+# Variables (non-sensitive)
+[vars]
+MAX_FILE_SIZE_BYTES = 104857600  # 100MB
+MAX_CLICK_LIMIT = 10
+RATE_LIMIT_REQUESTS_PER_MINUTE = 60
+
+# Secrets (set via `wrangler secret put` for production)
+# For local dev, use .dev.vars file
+# UPSTASH_REDIS_REST_URL
+# UPSTASH_REDIS_REST_TOKEN  
+# UPLOAD_AUTH_SECRET
+
+# Cron triggers for cleanup
+[triggers]
+crons = ["*/10 * * * *"]  # Every 10 minutes
