@@ -6,11 +6,21 @@ on:
       - main # Or your default branch like 'master'
     paths:
       - 'server/**' # Trigger only when changes are made in the 'server' directory
+  
+  workflow_dispatch: # Enable manual triggering from the GitHub UI
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     name: Deploy Worker
+    
+    # --- NEW FIX: Move the 'env' block to the job level ---
+    # This ensures these environment variables are available to ALL steps in this job
+    env:
+      UPLOAD_AUTH_SECRET: ${{ secrets.UPLOAD_AUTH_SECRET }}
+      UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+      UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+    # ------------------------------------------------------
 
     steps:
       - name: Checkout code
@@ -29,24 +39,32 @@ jobs:
         run: npm run build # Uses the 'build: "tsc"' script you'll add to server/package.json
         working-directory: ./server
 
+      # --- DIAGNOSTIC STEP: Check if secrets are correctly exposed as environment variables ---
+      - name: Verify Environment Variables
+        run: |
+          echo "--- Verifying Environment Variables for Deployment ---"
+          # Check if the variable is set (prints 'x' if set, nothing if not)
+          # The actual value will be masked with '***' by GitHub Actions for security
+          echo "UPLOAD_AUTH_SECRET is set: ${UPLOAD_AUTH_SECRET+x}"
+          echo "UPLOAD_AUTH_SECRET value (masked): ${UPLOAD_AUTH_SECRET}"
+          echo "UPSTASH_REDIS_REST_URL is set: ${UPSTASH_REDIS_REST_URL+x}"
+          echo "UPSTASH_REDIS_REST_URL value (masked): ${UPSTASH_REDIS_REST_URL}"
+          echo "UPSTASH_REDIS_REST_TOKEN is set: ${UPSTASH_REDIS_REST_TOKEN+x}"
+          echo "UPSTASH_REDIS_REST_TOKEN value (masked): ${UPSTASH_REDIS_REST_TOKEN}"
+          echo "CF_API_TOKEN is set: ${CF_API_TOKEN+x}" # This one is passed directly to with.apiToken, but good to check.
+          echo "CF_API_TOKEN value (masked): ${CF_API_TOKEN}"
+          echo "----------------------------------------------------"
+      # --------------------------------------------------------------------------------------
+
       - name: Deploy Worker
         uses: cloudflare/wrangler-action@v3 # Use the official Wrangler GitHub Action
         with:
-          apiToken: ${{ secrets.CF_API_TOKEN }}
-          # The working directory for Wrangler should be the 'server' directory
+          apiToken: ${{ secrets.CF_API_TOKEN }} # CF_API_TOKEN can be a Repository Secret (or also an Environment Secret)
           workingDirectory: ./server
-          # These secrets are passed from GitHub Actions to your Worker environment
-          # They are NOT exposed in your code or logs.
+          # These secrets are now correctly passed to Wrangler because they are
+          # established as environment variables at the job level (in the `env` block above),
+          # and the `wrangler-action` automatically looks for these names in the environment.
           secrets: |
             UPLOAD_AUTH_SECRET
             UPSTASH_REDIS_REST_URL
             UPSTASH_REDIS_REST_TOKEN
-        env:
-          # Define the actual values of secrets here from GitHub Secrets.
-          # These match the environment variables expected by your worker.
-          # IMPORTANT: These MUST correspond to the secrets you manually set via wrangler secret put
-          # or the .dev.vars values. For CI/CD, these are provided directly by GitHub Secrets.
-          UPLOAD_AUTH_SECRET: ${{ secrets.UPLOAD_AUTH_SECRET }}
-          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
-          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
-
