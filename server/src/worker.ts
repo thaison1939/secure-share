@@ -16,9 +16,10 @@ interface Env {
   MAX_FILE_SIZE_BYTES: number;
   MAX_CLICK_LIMIT: number;
   RATE_LIMIT_REQUESTS_PER_MINUTE: number;
+  [key: string]: any; // Allow additional bindings
 }
 
-const app = new Hono<Env>();
+const app = new Hono<{ Bindings: Env }>();
 
 // CORS middleware - allowing all origins for development
 app.use('*', cors({
@@ -314,11 +315,11 @@ async function handleCleanup(env: Env): Promise<void> {
 
       for (const key of keys) {
         const ttl = await redis.ttl(key); // Get TTL of the metadata key
-        
+        const uuid = key.replace('file:', '');
+
         // If TTL is -2, the key (metadata) has expired and no longer exists in Redis.
         // This is our primary indicator for R2 cleanup.
         if (ttl === -2) {
-          const uuid = key.replace('file:', '');
           console.log(`Cleanup: Redis metadata for ${uuid} expired. Deleting R2 object.`);
           try {
             await env.SECURE_SHARE_BUCKET.delete(uuid);
