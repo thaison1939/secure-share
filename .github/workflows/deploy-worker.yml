@@ -1,0 +1,52 @@
+name: Deploy Cloudflare Worker
+
+on:
+  push:
+    branches:
+      - main # Or your default branch like 'master'
+    paths:
+      - 'server/**' # Trigger only when changes are made in the 'server' directory
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    name: Deploy Worker
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20' # Use a Node.js version compatible with your Worker (e.g., 20 or 22)
+
+      - name: Install server dependencies
+        run: npm install
+        working-directory: ./server # Run npm install within the 'server' directory
+
+      - name: Build Worker (TypeScript compilation)
+        run: npm run build # Uses the 'build: "tsc"' script you'll add to server/package.json
+        working-directory: ./server
+
+      - name: Deploy Worker
+        uses: cloudflare/wrangler-action@v3 # Use the official Wrangler GitHub Action
+        with:
+          apiToken: ${{ secrets.CF_API_TOKEN }}
+          # The working directory for Wrangler should be the 'server' directory
+          workingDirectory: ./server
+          # These secrets are passed from GitHub Actions to your Worker environment
+          # They are NOT exposed in your code or logs.
+          secrets: |
+            UPLOAD_AUTH_SECRET
+            UPSTASH_REDIS_REST_URL
+            UPSTASH_REDIS_REST_TOKEN
+        env:
+          # Define the actual values of secrets here from GitHub Secrets.
+          # These match the environment variables expected by your worker.
+          # IMPORTANT: These MUST correspond to the secrets you manually set via wrangler secret put
+          # or the .dev.vars values. For CI/CD, these are provided directly by GitHub Secrets.
+          UPLOAD_AUTH_SECRET: ${{ secrets.UPLOAD_AUTH_SECRET }}
+          UPSTASH_REDIS_REST_URL: ${{ secrets.UPSTASH_REDIS_REST_URL }}
+          UPSTASH_REDIS_REST_TOKEN: ${{ secrets.UPSTASH_REDIS_REST_TOKEN }}
+
