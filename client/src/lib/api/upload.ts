@@ -4,6 +4,8 @@ export interface UploadRequest {
   originalFilename: string;
   clickLimit: number;
   fileSize: number;
+  passwordHashBase64: string;
+  nonceBase64: string;
 }
 
 export interface UploadResponse {
@@ -21,6 +23,8 @@ export async function uploadEncryptedFile(request: UploadRequest): Promise<Uploa
     formData.append('originalFilename', request.originalFilename);
     formData.append('clickLimit', request.clickLimit.toString());
     formData.append('fileSize', request.fileSize.toString());
+    formData.append('passwordHash', request.passwordHashBase64);
+    formData.append('nonceBase64', request.nonceBase64);
 
     const response = await fetch('/api/upload', {
       method: 'POST',

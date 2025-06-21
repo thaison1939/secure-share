@@ -18,7 +18,7 @@ interface Env {
   RATE_LIMIT_REQUESTS_PER_MINUTE: number;
 }
 
-const app = new Hono<{ Bindings: Env }>();
+const app = new Hono<Env>();
 
 // CORS middleware - allowing all origins for development
 app.use('*', cors({
@@ -203,7 +203,7 @@ app.get('/api/download/:uuid', async (c) => {
                      'unknown';
     
     console.log(`Download request from IP: ${clientIP}, UUID: ${uuid}`);
-    
+
     // Check rate limit
     const rateLimitOk = await checkRateLimit(redis, clientIP, env.RATE_LIMIT_REQUESTS_PER_MINUTE);
     if (!rateLimitOk) {
