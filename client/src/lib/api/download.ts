@@ -8,8 +8,9 @@ export interface DownloadResponse {
   filename?: string;
   error?: string;
   remainingClicks?: number;
-  passwordHash?: string;
-  nonceBase64?: string;
+  passwordHashBase64?: string;    // From server headers
+  nonceBase64?: string;           // From server headers
+  pwhashSaltBase64?: string;      // ✅ NEW: From server headers
 }
 
 /**
@@ -17,7 +18,7 @@ export interface DownloadResponse {
  */
 export async function downloadEncryptedFile(uuid: string): Promise<DownloadResponse> {
   try {
-    const response = await fetch(`/api/download/${uuid}`, {
+    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/download/${uuid}`, {
       method: 'GET',
     });
 
@@ -47,11 +48,12 @@ export async function downloadEncryptedFile(uuid: string): Promise<DownloadRespo
       throw new Error(`Download failed: ${response.status}`);
     }
 
-    // Get metadata from headers
+    // ✅ UPDATED: Get all metadata from headers including new pwhash salt
     const filename = response.headers.get('X-Original-Filename') || 'downloaded-file';
     const remainingClicks = response.headers.get('X-Remaining-Clicks');
-    const passwordHash = response.headers.get('X-Password-Hash');
+    const passwordHashBase64 = response.headers.get('X-Password-Hash-Base64');
     const nonceBase64 = response.headers.get('X-Nonce-Base64');
+    const pwhashSaltBase64 = response.headers.get('X-Pwhash-Salt-Base64'); // NEW HEADER
 
     // Get encrypted file data
     const arrayBuffer = await response.arrayBuffer();
@@ -62,8 +64,9 @@ export async function downloadEncryptedFile(uuid: string): Promise<DownloadRespo
       data,
       filename,
       remainingClicks: remainingClicks ? parseInt(remainingClicks) : undefined,
-      passwordHash: passwordHash || undefined,
+      passwordHashBase64: passwordHashBase64 || undefined,
       nonceBase64: nonceBase64 || undefined,
+      pwhashSaltBase64: pwhashSaltBase64 || undefined, 
     };
 
   } catch (error) {

@@ -1,66 +1,102 @@
 /**
- * Client-side File Validation
- * Provides user experience validation before upload
- * Note: Server-side validation is still required for security
+ * File validation utilities for secure share.
+ * These functions help validate file properties (size, type, extension) client-side
+ * before upload, providing immediate user feedback.
  */
 
-interface ValidationResult {
+export interface FileConfig {
+  maxFileSizeMB: number;
+  allowedTypes: string[]; // MIME types (e.g., 'image/png', 'application/pdf') or file extensions (e.g., '.txt')
+}
+
+export interface ValidationResult {
   isValid: boolean;
   errors: string[];
 }
 
-interface FileValidationOptions {
-  maxSizeMB?: number;
-  allowedExtensions?: string[];
+/**
+ * Retrieves file validation configuration from client-side environment variables.
+ * @returns An object conforming to FileConfig.
+ */
+export function getFileConfigFromEnv(): FileConfig {
+  // Parse max file size from environment variable, defaulting to 100MB
+  const maxFileSizeMB = parseInt(process.env.NEXT_PUBLIC_MAX_FILE_SIZE_MB || '100', 10); // Ensure radix 10
+
+  // Parse allowed types from a comma-separated string, trimming whitespace
+  const allowedTypesStr = process.env.NEXT_PUBLIC_SUPPORTED_FILE_TYPES || '';
+  const allowedTypes = allowedTypesStr
+    .split(',')
+    .map(t => t.trim().toLowerCase()) // Normalize to lowercase for consistent comparison
+    .filter(t => t !== ''); // Remove any empty strings from splitting
+
+  return {
+    maxFileSizeMB,
+    allowedTypes
+  };
 }
 
-export function validateFile(file: File, options?: FileValidationOptions): ValidationResult {
+/**
+ * Validates a given File object against a provided FileConfig.
+ * Checks for size, blocked extensions, and allowed types.
+ * @param file The File object to validate.
+ * @param config The FileConfig object containing validation rules.
+ * @returns A ValidationResult indicating if the file is valid and a list of errors if any.
+ */
+export function validateFile(file: File, config: FileConfig): ValidationResult {
   const errors: string[] = [];
-  
-  // Get config from environment or use defaults
-  const maxSizeMB = options?.maxSizeMB || parseInt(process.env.NEXT_PUBLIC_MAX_FILE_SIZE_MB || '100');
-  const allowedExtensions = options?.allowedExtensions || 
-    (process.env.NEXT_PUBLIC_SUPPORTED_FILE_TYPES || '').split(',').filter(Boolean);
 
-  // Validate file size
-  const maxSizeBytes = maxSizeMB * 1024 * 1024;
-  if (file.size > maxSizeBytes) {
-    errors.push(`File size must be less than ${maxSizeMB}MB`);
+  // 1. Check file size
+  const fileSizeMB = file.size / (1024 * 1024);
+  if (fileSizeMB > config.maxFileSizeMB) {
+    errors.push(`File size (${fileSizeMB.toFixed(1)}MB) exceeds maximum allowed size (${config.maxFileSizeMB}MB).`);
   }
 
-  // Validate file extension (if configured)
-  if (allowedExtensions.length > 0) {
-    const fileName = file.name.toLowerCase();
-    const hasValidExtension = allowedExtensions.some(ext => 
-      fileName.endsWith(ext.toLowerCase())
-    );
-    
-    if (!hasValidExtension) {
-      errors.push(`File type not supported. Allowed types: ${allowedExtensions.join(', ')}`);
+  const fileExtension = '.' + (file.name.split('.').pop()?.toLowerCase() || ''); // Ensure lowercase and handle no extension
+
+  // 3. Check allowed types (if specified in config)
+  if (config.allowedTypes.length > 0) {
+    const isAllowedType = config.allowedTypes.some(typeRule => {
+      if (typeRule.includes('/')) {
+        // MIME type check (e.g., 'image/jpeg', 'application/pdf', 'image/*')
+        const [majorType, subType] = typeRule.split('/');
+        if (subType === '*') { // Wildcard match (e.g., 'image/*')
+          return file.type.startsWith(`${majorType}/`);
+        }
+        return file.type.toLowerCase() === typeRule; // Exact MIME type match
+      } else if (typeRule.startsWith('.')) {
+        // Extension check (e.g., '.txt')
+        return fileExtension === typeRule;
+      } else {
+        // Fallback: treat as extension if no '/' or '.'
+        return fileExtension === `.${typeRule}`;
+      }
+    });
+
+    if (!isAllowedType) {
+      errors.push(`File type not allowed. Allowed types include: ${config.allowedTypes.join(', ')}.`);
     }
-  }
-
-  // Basic file name validation
-  if (!file.name || file.name.trim().length === 0) {
-    errors.push('File must have a valid name');
-  }
-
-  if (file.name.length > 255) {
-    errors.push('File name too long (max 255 characters)');
   }
 
   return {
     isValid: errors.length === 0,
-    errors,
+    errors
   };
 }
 
-export function formatFileSize(bytes: number): string {
+/**
+ * Formats file size into a human-readable string (e.g., "1.23 MB").
+ * @param bytes The file size in bytes.
+ * @param decimals The number of decimal places to include (default: 2).
+ * @returns A formatted string representing the file size.
+ */
+export function formatFileSize(bytes: number, decimals = 2): string {
   if (bytes === 0) return '0 Bytes';
-  
+
   const k = 1024;
-  const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+  const dm = decimals < 0 ? 0 : decimals;
+  const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+
   const i = Math.floor(Math.log(bytes) / Math.log(k));
-  
-  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 }
