@@ -1,57 +1,90 @@
 "use client";
 
-import React, { useState, useRef, ChangeEvent, FormEvent } from 'react';
+import React, { useState, useRef, ChangeEvent, FormEvent, DragEvent } from 'react';
 import { generateSecureUUID } from '../lib/crypto/uuid';
 import { encryptFile, type EncryptionResult } from '../lib/crypto/encryption'; 
 import { generateShareLink } from '../lib/crypto/url-fragment';
 import { uploadWithProgress, type UploadResponse } from '../lib/api/upload'; 
 import { getFileConfigFromEnv, validateFile, formatFileSize } from '../lib/file-validation';
 import { useToast } from '@/components/ui/use-toast'; 
-import { cn } from '../lib/utils'; 
 
-// Get file validation configuration from environment variables
 const FILE_CONFIG = getFileConfigFromEnv();
 const MAX_FILE_SIZE_MB = parseInt(process.env.NEXT_PUBLIC_MAX_FILE_SIZE_MB || '100');
-const DEFAULT_CLICK_LIMIT = parseInt(process.env.NEXT_PUBLIC_DEFAULT_CLICK_LIMIT || '1');
-// API_BASE_URL should point to your Next.js frontend base URL for generating the share link.
-// For Vercel/Cloudflare Pages deployments, this would often be the root domain.
-const API_BASE_URL = process.env.NEXT_PUBLIC_VERCEL_URL ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}` : window.location.origin;
-
+const DEFAULT_DOWNLOAD_LIMIT = 5;
+const API_BASE_URL = process.env.NEXT_PUBLIC_VERCEL_URL ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}` : `http://localhost:3001`;
 
 export default function HomePage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [password, setPassword] = useState<string>(''); // Added password state
-  const [clickLimit, setClickLimit] = useState<number>(DEFAULT_CLICK_LIMIT);
+  const [password, setPassword] = useState<string>('');
+  const [downloadLimit, setdownloadLimit] = useState<number>(DEFAULT_DOWNLOAD_LIMIT);
+  const [showAdvanced, setShowAdvanced] = useState<boolean>(false);
   const [shareLink, setShareLink] = useState<string | null>(null);
-  const [uploadProgress, setUploadProgress] = useState<number>(0); // 0-100
+  const [uploadProgress, setUploadProgress] = useState<number>(0);
   const [isUploading, setIsUploading] = useState<boolean>(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [isDragOver, setIsDragOver] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { toast } = useToast(); 
 
-  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
+  const handleFileSelection = (file: File) => {
     setUploadError(null);
     setShareLink(null);
     setUploadProgress(0);
+    
+    const validation = validateFile(file, FILE_CONFIG);
+    if (!validation.isValid) {
+      setUploadError(validation.errors.join('\n'));
+      setSelectedFile(null);
+      toast({
+        title: "File Validation Error",
+        description: validation.errors.join(', '),
+        variant: "destructive",
+        duration: 5000,
+      });
+    } else {
+      setSelectedFile(file);
+    }
+  };
+
+  const handleFileChange = (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.files && event.target.files[0]) {
-      const file = event.target.files[0];
-      const validation = validateFile(file, FILE_CONFIG);
-      if (!validation.isValid) {
-        setUploadError(validation.errors.join('\n'));
-        setSelectedFile(null);
-        toast({
-          title: "File Validation Error",
-          description: validation.errors.join(', '),
-          variant: "destructive",
-          duration: 5000,
-        });
-      } else {
-        setSelectedFile(file);
-      }
+      handleFileSelection(event.target.files[0]);
     } else {
       setSelectedFile(null);
     }
+  };
+
+  const handleDragEnter = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(true);
+  };
+
+  const handleDragLeave = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+  };
+
+  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragOver(false);
+
+    const files = e.dataTransfer.files;
+    if (files && files[0]) {
+      handleFileSelection(files[0]);
+    }
+  };
+
+  const handleBrowseClick = () => {
+    fileInputRef.current.click();
   };
 
   const handleUpload = async (event: FormEvent) => {
@@ -81,35 +114,31 @@ export default function HomePage() {
     setUploadProgress(0);
 
     try {
-      // 1. Generate UUID
       const uuid = generateSecureUUID();
       console.log('Generated UUID:', uuid);
 
-      // 2. Encrypt file client-side using libsodium
       const encryptionToast = toast({
         title: "Encrypting File...",
         description: "Your file is being encrypted securely in your browser. Please do not close this page.",
         variant: "default",
-        duration: 1000000, // Long duration for ongoing process
+        duration: 1000000,
       });
       
       const encryptionResult: EncryptionResult = await encryptFile(selectedFile, password);
       console.log('File encrypted client-side.');
-      encryptionToast.dismiss(); // Dismiss the encryption toast on success
+      encryptionToast.dismiss();
 
-      // ✅ UPDATED: Prepare upload request with all three base64 fields
       const uploadRequest = {
         encryptedFile: encryptionResult.encryptedData,
         uuid: uuid,
         originalFilename: selectedFile.name,
-        clickLimit: clickLimit,
+        downloadLimit: downloadLimit,
         fileSize: selectedFile.size, 
         passwordHashBase64: encryptionResult.passwordHashBase64,
         nonceBase64: encryptionResult.nonceBase64,
         pwhashSaltBase64: encryptionResult.pwhashSaltBase64, 
       };
 
-      // 4. Upload encrypted file with progress
       const uploadToast = toast({
         title: "Uploading Encrypted File...",
         description: "Transferring your encrypted file to the server.",
@@ -123,8 +152,7 @@ export default function HomePage() {
       });
 
       if (uploadResponse.success) {
-        uploadToast.dismiss(); // Dismiss upload toast on success
-        // 5. Generate shareable link (no sensitive data in fragment, only UUID)
+        uploadToast.dismiss();
         const generatedLink = generateShareLink({
           baseUrl: API_BASE_URL,
           uuid: uuid,
@@ -136,15 +164,13 @@ export default function HomePage() {
           variant: "default",
           duration: 8000,
         });
-        // Clear selected file and password after successful upload
         setSelectedFile(null);
         setPassword('');
         if (fileInputRef.current) {
-          fileInputRef.current.value = ''; // Clear file input
+          fileInputRef.current.value = '';
         }
-
       } else {
-        uploadToast.dismiss(); // Dismiss upload toast on error
+        uploadToast.dismiss();
         const userFriendlyError = uploadResponse.error || "An unknown error occurred during upload. Please try again.";
         setUploadError(userFriendlyError);
         toast({
@@ -155,11 +181,9 @@ export default function HomePage() {
         });
       }
     } catch (error: any) {
-      // Handle errors...
       console.error('Full upload process failed:', error);
       let userFriendlyError = "An unexpected error occurred during the upload process.";
 
-      // Map specific errors to user-friendly messages
       if (error.message.includes('File too large')) {
         userFriendlyError = `The selected file is too large. Max size: ${MAX_FILE_SIZE_MB}MB.`;
       } else if (error.message.includes('Failed to encrypt file')) {
@@ -177,13 +201,12 @@ export default function HomePage() {
       });
     } finally {
       setIsUploading(false);
-      setUploadProgress(0); // Reset progress on completion/error
+      setUploadProgress(0);
     }
   };
 
   const handleCopyLink = () => {
     if (shareLink) {
-      // Use document.execCommand('copy') for better compatibility in iframes
       const textarea = document.createElement('textarea');
       textarea.value = shareLink;
       document.body.appendChild(textarea);
@@ -199,139 +222,159 @@ export default function HomePage() {
   };
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center p-6 bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
-      <div className="w-full max-w-lg p-8 space-y-6 bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700">
-        <h1 className="text-3xl font-bold text-center text-blue-600 dark:text-blue-400">Secure Share</h1>
-        <p className="text-center text-gray-600 dark:text-gray-300">
-          Share files anonymously and privately. Files auto-delete after 1 hour or N clicks.
-          The server never sees your content unencrypted.
-        </p>
-
-        <form onSubmit={handleUpload} className="space-y-4">
-          <div>
-            <label htmlFor="file-upload" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Select File (Max {MAX_FILE_SIZE_MB}MB)
-            </label>
-            <input
-              id="file-upload"
-              ref={fileInputRef}
-              type="file"
-              onChange={handleFileChange}
-              className="block w-full text-sm text-gray-500
-                file:mr-4 file:py-2 file:px-4
-                file:rounded-full file:border-0
-                file:text-sm file:font-semibold
-                file:bg-blue-50 file:text-blue-700
-                hover:file:bg-blue-100 dark:file:bg-blue-900 dark:file:text-blue-300 dark:hover:file:bg-blue-800
-                cursor-pointer"
-              disabled={isUploading}
-            />
-            {selectedFile && (
-              <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-                Selected: {selectedFile.name} ({formatFileSize(selectedFile.size)})
-              </p>
-            )}
-            {uploadError && (
-              <p className="mt-2 text-sm text-red-600 dark:text-red-400">{uploadError}</p>
-            )}
+    <div className="wrapper">
+      <div className="container">
+        <h1>Upload a file</h1>
+        
+        <form onSubmit={handleUpload}>
+          <div className="upload-container">
+            <div 
+              className={`border-container ${isDragOver ? 'drag-over' : ''} ${uploadError ? 'error' : ''} ${selectedFile && !uploadError ? 'success' : ''}`}
+              onDragEnter={handleDragEnter}
+              onDragLeave={handleDragLeave}
+              onDragOver={handleDragOver}
+              onDrop={handleDrop}
+              onClick={handleBrowseClick}
+              style={{cursor: 'pointer'}}
+            >
+              {selectedFile ? (
+                <div className="selected-file">
+                  <i className="fas fa-check-circle selected-file-icon"></i>
+                  <p className="selected-file-name">{selectedFile.name}</p>
+                  <p className="selected-file-size">
+                    {formatFileSize(selectedFile.size)}
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <div className="upload-icon">
+                    <i className="fa-solid fa-upload"></i>
+                  </div>
+                  <p>Drag and drop files here, or <a 
+                    href="#" 
+                    id="file-browser" 
+                  >browse</a> your computer.</p>
+                </>
+              )}
+              
+              <input
+                ref={fileInputRef}
+                type="file"
+                onChange={handleFileChange}
+                style={{display: 'none'}}
+                disabled={isUploading}
+                formEncType='multipart/form-data'
+              />
+            </div>
           </div>
 
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+          {uploadError && (
+            <div className="error-message">{uploadError}</div>
+          )}
+
+          <button
+            type="submit"
+            className="upload-btn"
+            disabled={isUploading || !selectedFile || !password}
+          >
+            {isUploading ? (
+              <>
+                <i className="fas fa-spinner fa-spin spinner-icon"></i>
+                Uploading... ({uploadProgress}%)
+              </>
+            ) : (
+              <>
+                <i className="fas fa-shield-alt shield-icon"></i>
+                Upload and Encrypt
+              </>
+            )}
+          </button>
+
+          {isUploading && (
+            <div className="progress-container">
+              <div className="progress-bar" style={{ width: `${uploadProgress}%` }}></div>
+            </div>
+          )}
+
+          <div className="form-section">
+            <label className="form-label">
+              <i className="fas fa-lock lock-icon"></i>
               Set Password for File
             </label>
             <input
-              id="password"
               type="password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm
-                         focus:outline-none focus:ring-blue-500 focus:border-blue-500
-                         dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
+              className="form-input"
               placeholder="Enter a strong password"
               disabled={isUploading}
               autoComplete="new-password"
             />
           </div>
 
-          <div>
-            <label htmlFor="click-limit" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-              Max Download Clicks (N)
+          <div className="checkbox-section">
+            <label className="checkbox-label">
+              <input
+                type="checkbox"
+                checked={showAdvanced}
+                onChange={(e) => setShowAdvanced(e.target.checked)}
+                className="checkbox-input"
+              />
+              <span className="checkbox-text">Advanced Settings</span>
             </label>
-            <input
-              id="click-limit"
-              type="number"
-              min="1"
-              max="999" // A reasonable upper limit
-              value={clickLimit}
-              onChange={(e) => setClickLimit(parseInt(e.target.value) || 1)}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm
-                         focus:outline-none focus:ring-blue-500 focus:border-blue-500
-                         dark:bg-gray-700 dark:border-gray-600 dark:text-gray-100"
-              disabled={isUploading}
-            />
-            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-              File will auto-delete after 1 hour or this many downloads, whichever comes first.
-            </p>
           </div>
 
-          <button
-            type="submit"
-            className={cn(
-              "w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white",
-              isUploading || !selectedFile || !password ? "bg-blue-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500",
-              "transition duration-150 ease-in-out"
-            )}
-            disabled={isUploading || !selectedFile || !password}
-          >
-            {isUploading ? (
-              <>
-                Uploading... ({uploadProgress}%)
-                <div className="ml-2 w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-              </>
-            ) : (
-              'Upload & Get Share Link'
-            )}
-          </button>
-
-          {isUploading && (
-            <div className="w-full bg-gray-200 rounded-full h-2.5 dark:bg-gray-700 mt-4">
-              <div
-                className="bg-blue-600 h-2.5 rounded-full"
-                style={{ width: `${uploadProgress}%` }}
-              ></div>
+          {showAdvanced && (
+            <div className="form-section">
+              <label className="form-label">
+                <i className="fas fa-download download-icon"></i>
+                Maximum Downloads (1-10)
+              </label>
+              <input
+                type="number"
+                min="1"
+                max="10"
+                value={downloadLimit}
+                onChange={(e) => {
+                  const value = parseInt(e.target.value) || 1;
+                  setdownloadLimit(Math.max(1, Math.min(10, value)));
+                }}
+                className="form-input"
+                disabled={isUploading}
+              />
+              <div className="helper-text">
+                File will auto-delete after 1 hour or this many downloads on the link, whichever comes first.
+              </div>
             </div>
           )}
         </form>
 
         {shareLink && (
-          <div className="mt-6 p-4 bg-gray-100 dark:bg-gray-700 border border-dashed border-gray-300 dark:border-gray-600 rounded-md space-y-3">
-            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-200">Your Share Link:</h3>
-            <p className="break-all font-mono text-sm text-blue-600 dark:text-blue-400">
-              {shareLink}
-            </p>
-            <button
-              onClick={handleCopyLink}
-              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition duration-150 ease-in-out"
-            >
+          <div className="share-container">
+            <h3 className="share-title">
+              <i className="fas fa-share-alt share-icon"></i>
+              Your Share Link:
+            </h3>
+            <div className="share-link">{shareLink}</div>
+            <button onClick={handleCopyLink} className="copy-btn">
+              <i className="fas fa-copy copy-btn-icon"></i>
               Copy Link
             </button>
-            <p className="text-xs text-center text-gray-500 dark:text-gray-400 mt-2">
-              **IMPORTANT:** This link leads to your encrypted file. Share it only with trusted recipients!
-            </p>
+            <div className="important-text">
+              <strong>IMPORTANT:</strong> This link leads to your encrypted file. Share it only with trusted recipients!
+            </div>
           </div>
         )}
 
-        <div className="mt-8 text-center text-gray-500 dark:text-gray-400 text-sm">
+        <div className="disclaimer">
           <p>
-            Files are encrypted in your browser and auto-deleted from the server after 1 hour or N downloads.
-            We never see your plaintext content.
+          File is encrypted <i>before</i> it reaches our servers, making it inaccessible to everyone, including us, without the specific link and the password you've chosen. 
           </p>
-          <p className="mt-2 text-red-500 dark:text-red-300 font-semibold">
+          <p className="disclaimer-warning">
             **Warning:** We cannot scan for malicious content. Download at your own risk.
           </p>
         </div>
       </div>
-    </main>
+    </div>
   );
 }

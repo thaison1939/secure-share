@@ -6,7 +6,7 @@ export interface UploadRequest {
   encryptedFile: Uint8Array;
   uuid: string;
   originalFilename: string;
-  clickLimit: number;
+  downloadLimit: number;
   fileSize: number;
   passwordHashBase64: string;    // Derived using pwhashSalt
   nonceBase64: string;           // For ChaCha20-Poly1305
@@ -89,7 +89,7 @@ export async function uploadWithProgress(
     formData.append('file', encryptedBlob);
     formData.append('uuid', request.uuid);
     formData.append('originalFilename', request.originalFilename);
-    formData.append('clickLimit', request.clickLimit.toString());
+    formData.append('downloadLimit', request.downloadLimit.toString());
     formData.append('fileSize', request.fileSize.toString());
     
     // ✅ UPDATED: Send all three base64 fields

@@ -1,11 +1,9 @@
-/**
- * Next.js API Route - Secure proxy to Cloudflare Worker
- * This route handles the upload authentication securely on the server-side
- */
-
 import { NextRequest, NextResponse } from 'next/server';
 
-export async function POST(request: NextRequest) {
+export async function POST(
+  request: NextRequest,
+  { params }: { params: { uuid: string } }
+) {
   try {
     const authSecret = process.env.UPLOAD_AUTH_SECRET;
     if (!authSecret) {
@@ -25,40 +23,37 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
-    console.log(`Proxying upload request to Worker: ${workerUrl}/api/upload`);
+    const { uuid } = params;
+    console.log(`Proxying increment request to Worker: ${workerUrl}/api/download/${uuid}/increment`);
 
-    // Get the form data from the request
-    const formData = await request.formData();
-
-    // Forward the entire form data to the worker
-    const workerResponse = await fetch(`${workerUrl}/api/upload`, {
+    const workerResponse = await fetch(`${workerUrl}/api/download/${uuid}/increment`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${authSecret}`,
+        'Content-Type': 'application/json',
       },
-      body: formData, // Forward the form data directly
     });
 
-    console.log(`Worker upload response status: ${workerResponse.status}`);
+    console.log(`Worker increment response status: ${workerResponse.status}`);
 
     if (!workerResponse.ok) {
       const errorText = await workerResponse.text();
-      console.error('Worker upload error:', errorText);
+      console.error('Worker increment error:', errorText);
       return NextResponse.json({ 
         success: false, 
-        error: `Upload failed: ${workerResponse.status}` 
+        error: `Increment failed: ${workerResponse.status}` 
       }, { status: workerResponse.status });
     }
 
     const result = await workerResponse.json();
-    console.log('Upload proxy successful');
+    console.log('Increment proxy successful');
     return NextResponse.json(result);
 
   } catch (error) {
-    console.error('Upload proxy error:', error);
+    console.error('Increment proxy error:', error);
     return NextResponse.json({ 
       success: false, 
-      error: 'Upload failed' 
+      error: 'Increment failed' 
     }, { status: 500 });
   }
 }
