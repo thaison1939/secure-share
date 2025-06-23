@@ -10,7 +10,7 @@ name = "secure-share-api"
 
 # R2 Bucket binding
 [[r2_buckets]]
-binding = "SECURE_SHARE_BUCKET"
+binding = "R2_BUCKET"
 bucket_name = "secure-share-files"
 
 # Variables (non-sensitive)
