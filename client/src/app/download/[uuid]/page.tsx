@@ -95,7 +95,7 @@ export default function DownloadPage({ params }: DownloadPageProps) {
 
       setOriginalFilename(downloadResponse.filename || `file-${uuid}`);
       setFileSize(downloadResponse.fileSize || null);
-      setRemainingClicks(downloadResponse.remainingClicks);
+      setRemainingClicks(downloadResponse.remainingDownloads);
       setDownloadStatus('idle');
 
       toast({
@@ -217,12 +217,17 @@ export default function DownloadPage({ params }: DownloadPageProps) {
                   </p>
                 )}
                 {typeof remainingClicks === 'number' && (
-                  <p style={{margin: '5px 0', fontSize: '0.8em', color: '#666'}}>
+                  <p style={{margin: '5px 0', fontSize: '0.95em', color: '#666'}}>
                     Downloads remaining: <strong>{remainingClicks}</strong>
+                    {downloadStatus === 'idle' && errorMessage === 'Incorrect password. Please try again.' && (
+                      <span style={{color: '#dc2626', fontWeight: 'bold', marginLeft: '10px'}}>
+                        - Wrong password
+                      </span>
+                    )}
                   </p>
-                )}
+                )}                    
+                </div>
               </div>
-            </div>
           </div>
         )}
 

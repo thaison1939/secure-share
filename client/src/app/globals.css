@@ -99,7 +99,6 @@ h1 {
   font-family: 'Montserrat', sans-serif;
   font-weight: 600;
   font-size: 1.1em;
-  margin: 20px 0;
   transition: all 0.3s ease;
 }
 
@@ -235,19 +234,17 @@ h1 {
 
 .selected-file-icon {
   color: #16a34a;
-  font-size: 3rem;
-  margin-bottom: 10px;
+  font-size: 4rem;
+  margin-top: 10px;
 }
 
 .selected-file-name {
-  margin: 10px 0;
   font-weight: bold;
   color: #130f40;
 }
 
 .selected-file-size {
-  margin: 5px 0;
-  font-size: 0.9em;
+  font-size: 0.95em;
   opacity: 0.7;
 }
 

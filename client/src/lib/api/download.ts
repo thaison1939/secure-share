@@ -7,7 +7,7 @@ export interface DownloadResponse {
   data?: Uint8Array;
   filename?: string;
   error?: string;
-  remainingClicks?: number;
+  remainingDownloads?: number;
   passwordHashBase64?: string;    // From server headers
   nonceBase64?: string;           // From server headers
   pwhashSaltBase64?: string;      // ✅ NEW: From server headers
@@ -50,7 +50,7 @@ export async function downloadEncryptedFile(uuid: string): Promise<DownloadRespo
 
     // ✅ UPDATED: Get all metadata from headers including new pwhash salt
     const filename = response.headers.get('X-Original-Filename') || 'downloaded-file';
-    const remainingClicks = response.headers.get('X-Remaining-Clicks');
+    const remainingDownloads = response.headers.get('X-Remaining-Downloads');
     const passwordHashBase64 = response.headers.get('X-Password-Hash-Base64');
     const nonceBase64 = response.headers.get('X-Nonce-Base64');
     const pwhashSaltBase64 = response.headers.get('X-Pwhash-Salt-Base64'); // NEW HEADER
@@ -63,7 +63,7 @@ export async function downloadEncryptedFile(uuid: string): Promise<DownloadRespo
       success: true,
       data,
       filename,
-      remainingClicks: remainingClicks ? parseInt(remainingClicks) : undefined,
+      remainingDownloads: remainingDownloads ? parseInt(remainingDownloads) : undefined,
       passwordHashBase64: passwordHashBase64 || undefined,
       nonceBase64: nonceBase64 || undefined,
       pwhashSaltBase64: pwhashSaltBase64 || undefined, 
