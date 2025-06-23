@@ -1,4 +1,5 @@
 import sodium from 'libsodium-wrappers-sumo';
+import { generateShareLink } from './url-fragment';
 /**
  * Password-based file encryption using libsodium's ChaCha20-Poly1305 (IETF variant)
  * and Argon2id for password hashing/key derivation.
@@ -53,7 +54,6 @@ async function ensureSodiumReady(): Promise<void> {
   console.log('libsodium-sumo initialized successfully');
   console.log('libsodium version:', sodium.sodium_version_string());
 
-  // ✅ CRITICAL FIX: Use correct algorithm constant name
   PWHASH_OPSLIMIT = sodium.crypto_pwhash_OPSLIMIT_INTERACTIVE;
   PWHASH_MEMLIMIT = sodium.crypto_pwhash_MEMLIMIT_INTERACTIVE;
   PWHASH_ALG = sodium.crypto_pwhash_ALG_ARGON2ID13; // ✅ FIXED: Was ALG_ARGON2ID, should be ALG_ARGON2ID13
@@ -62,15 +62,6 @@ async function ensureSodiumReady(): Promise<void> {
   CHACHA_NONCE_BYTES = sodium.crypto_aead_chacha20poly1305_ietf_NPUBBYTES;
   CHACHA_TAG_BYTES = sodium.crypto_aead_chacha20poly1305_ietf_ABYTES;
 
-  // ✅ DEBUG: Log what we actually get from sodium
-  console.log('Raw sodium algorithm constants:', {
-    ALG_ARGON2ID: sodium.crypto_pwhash_ALG_ARGON2ID,
-    ALG_ARGON2ID13: sodium.crypto_pwhash_ALG_ARGON2ID13,
-    ALG_ARGON2I: sodium.crypto_pwhash_ALG_ARGON2I,
-    ALG_SCRYPTSALSA208SHA256: sodium.crypto_pwhash_ALG_SCRYPTSALSA208SHA256
-  });
-
-  // ✅ VALIDATION: Ensure constants were properly set
   if (!PWHASH_SALT_BYTES || !CHACHA_NONCE_BYTES || !CHACHA_KEY_BYTES || !PWHASH_ALG) {
     console.error('Critical constants not initialized:', {
       PWHASH_SALT_BYTES,
@@ -171,20 +162,9 @@ export async function derivePasswordHash(password: string, pwhashSalt: Uint8Arra
  * ✅ FIXED: Encrypt file with improved error handling
  */
 export async function encryptFile(file: File, password: string): Promise<EncryptionResult> {
-  await ensureSodiumReady(); // ✅ This MUST complete before accessing constants
+  await ensureSodiumReady(); 
   
   try {
-    console.log('Starting file encryption...');
-    console.log('File size:', file.size, 'bytes');
-    console.log('Password length:', password.length, 'characters');
-    
-    // ✅ VALIDATION: Ensure constants are available before using them
-    console.log('Constants check before generation:', {
-      CHACHA_NONCE_BYTES,
-      PWHASH_SALT_BYTES,
-      isInitialized
-    });
-    
     if (!CHACHA_NONCE_BYTES || !PWHASH_SALT_BYTES) {
       throw new Error('Libsodium constants not properly initialized');
     }

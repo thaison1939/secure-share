@@ -266,96 +266,106 @@ app.get('/api/download/:uuid', async (c) => {
         const uuid = c.req.param('uuid');
 
         // Get client IP for rate limiting
-        const clientIP = c.req.header('CF-Connecting-IP') ||
-                         c.req.header('X-Forwarded-For')?.split(',')[0].trim() ||
-                         c.req.header('X-Real-IP') ||
+        const clientIP = c.req.header('CF-Connecting-IP') || 
+                         c.req.header('X-Forwarded-For')?.split(',')[0].trim() || 
+                         c.req.header('X-Real-IP') || 
                          'unknown';
 
         console.log(`Download request from IP: ${clientIP}, UUID: ${uuid}`);
 
-        // Validate UUID format early
+        // Validate UUID format
         if (!isValidUUID(uuid)) {
-            console.warn(`Invalid UUID format for download: ${uuid}`);
+            console.warn(`Invalid UUID format: ${uuid}`);
             return c.json({ success: false, error: 'Invalid file ID format' }, 400);
         }
 
-        // ✅ FIXED: Check password brute-force attempts first (before general rate limit for this specific path)
-        const passwordAttemptsOk = await checkPasswordAttempts(redis, clientIP, uuid);
-        if (!passwordAttemptsOk) {
-            console.warn(`Password attempts limit exceeded for IP: ${clientIP}, UUID: ${uuid}`);
-            return c.json({ success: false, error: `Too many password attempts for this file. Please try again in ${PASSWORD_ATTEMPT_WINDOW_SECONDS / 60} minutes.` }, 429);
+        // Get file metadata from Redis
+        const metadataString = await redis.get(`file:${uuid}`);
+        if (!metadataString) {
+            console.warn(`File not found or expired: ${uuid}`);
+            return c.json({ success: false, error: 'File not found or expired' }, 404);
         }
 
-        // Check general rate limit
-        const rateLimitOk = await checkRateLimit(redis, clientIP, env.RATE_LIMIT_REQUESTS_PER_MINUTE);
-        if (!rateLimitOk) {
-            console.warn(`General rate limit exceeded for IP: ${clientIP}`);
-            return c.json({ success: false, error: 'Rate limit exceeded (general)' }, 429);
+        // ✅ CRITICAL FIX: Parse metadata correctly
+        let metadata;
+        try {
+            // Check if metadataString is already an object or needs parsing
+            if (typeof metadataString === 'string') {
+                metadata = JSON.parse(metadataString);
+            } else {
+                // Redis client already parsed it
+                metadata = metadataString;
+            }
+        } catch (parseError) {
+            console.error(`Failed to parse metadata for UUID: ${uuid}`, parseError);
+            return c.json({ success: false, error: 'File metadata corrupted' }, 500);
         }
 
-        // Check if file metadata exists (Redis TTL check is implicit here)
-        const metadataStr = await redis.get(`file:${uuid}`);
-        if (!metadataStr) {
-            console.log(`File metadata not found or expired for UUID: ${uuid}`);
-            return c.json({ success: false, error: 'File not found or has expired' }, 404);
+        // ✅ VALIDATION: Ensure required fields exist
+        if (!metadata.passwordHashBase64 || !metadata.nonceBase64 || !metadata.pwhashSaltBase64) {
+            console.error(`Missing required fields in metadata for UUID: ${uuid}`, {
+                hasPasswordHash: !!metadata.passwordHashBase64,
+                hasNonce: !!metadata.nonceBase64,
+                hasPwhashSalt: !!metadata.pwhashSaltBase64
+            });
+            return c.json({ success: false, error: 'File metadata incomplete' }, 500);
         }
 
-        const metadata = JSON.parse(metadataStr as string);
-        console.log(`File metadata found for UUID: ${uuid}. Clicks used: ${metadata.clicksUsed}/${metadata.clickLimit}`);
-
-        // Atomic increment of click counter (pre-decrement in original description implies `decr` for limit,
-        // but `incr` is more common for counting usage. I'll stick to `incr` for 'clicksUsed' and check against `clickLimit`.)
-        const clicksUsed = await redis.incr(`clicks:${uuid}`);
-
-        // Check click limit after incrementing (if it goes over, it's blocked)
-        if (clicksUsed > metadata.clickLimit) {
-            // Decrement it back if limit exceeded to reflect actual usage.
-            // This rollback ensures the counter accurately reflects state for future attempts.
-            await redis.decr(`clicks:${uuid}`);
-            console.warn(`Download limit exceeded for UUID: ${uuid}. Clicks: ${clicksUsed}/${metadata.clickLimit}`);
-            return c.json({ success: false, error: `Download limit exceeded (max ${metadata.clickLimit} downloads)` }, 403);
+        // Check if file has expired
+        if (metadata.expiresAt && Date.now() > metadata.expiresAt) {
+            console.warn(`File expired: ${uuid}, expired at: ${new Date(metadata.expiresAt)}`);
+            // Clean up expired file
+            await redis.del(`file:${uuid}`);
+            await env.R2_BUCKET.delete(`files/${uuid}`);
+            return c.json({ success: false, error: 'File expired' }, 410);
         }
 
-        // Record password attempt *before* serving the file (this attempt counts towards brute force)
-        // This is done after file existence check and general rate limits, but before R2 retrieval.
-        await recordPasswordAttempt(redis, clientIP, uuid);
+        // Check click limit
+        if (metadata.clicksUsed >= metadata.clickLimit) {
+            console.warn(`Click limit exceeded for file: ${uuid} (${metadata.clicksUsed}/${metadata.clickLimit})`);
+            return c.json({ success: false, error: 'Download limit exceeded' }, 403);
+        }
 
-        // Get encrypted file from R2
-        const fileObject = await env.SECURE_SHARE_BUCKET.get(uuid);
+        // Download file from R2
+        const fileObject = await env.R2_BUCKET.get(`files/${uuid}`);
         if (!fileObject) {
-            // This should ideally not happen if metadata exists, but good for robustness
-            console.error(`File object not found in R2 for UUID: ${uuid}, despite metadata existing.`);
+            console.error(`File not found in R2: ${uuid}`);
             return c.json({ success: false, error: 'File not found in storage' }, 404);
         }
 
-        // Calculate remaining clicks for response header
-        const remainingClicks = Math.max(0, metadata.clickLimit - clicksUsed);
+        // Increment click count
+        metadata.clicksUsed += 1;
+        const remainingClicks = metadata.clickLimit - metadata.clicksUsed;
 
-        console.log(`File download preparation successful for UUID: ${uuid}. Remaining clicks: ${remainingClicks}`);
+        // Update metadata in Redis (or delete if no clicks remaining)
+        if (remainingClicks > 0) {
+            await redis.setex(`file:${uuid}`, 3600, JSON.stringify(metadata));
+        } else {
+            await redis.del(`file:${uuid}`);
+            // File will be cleaned up by the scheduled task
+        }
 
-        // ✅ UPDATED: Stream the encrypted file back to client with password metadata in headers
+        console.log(`File download successful: ${uuid}, remaining clicks: ${remainingClicks}`);
+
+        // ✅ RETURN FILE: With all required headers including pwhashSaltBase64
         return new Response(fileObject.body, {
             headers: {
                 'Content-Type': fileObject.httpMetadata?.contentType || 'application/octet-stream',
                 'Content-Disposition': `attachment; filename="${encodeURIComponent(metadata.originalFilename || 'downloaded-file')}"`,
                 'X-Original-Filename': encodeURIComponent(metadata.originalFilename || 'downloaded-file'),
                 'X-Remaining-Clicks': remainingClicks.toString(),
-                // ✅ UPDATED: Include ALL password fields in headers
+                // ✅ ALL PASSWORD HEADERS: Include all three required fields
                 'X-Password-Hash-Base64': metadata.passwordHashBase64,
                 'X-Nonce-Base64': metadata.nonceBase64,
-                'X-Pwhash-Salt-Base64': metadata.pwhashSaltBase64, // ✅ NEW HEADER
+                'X-Pwhash-Salt-Base64': metadata.pwhashSaltBase64, // ✅ NEW FIELD
                 'Cache-Control': 'no-cache, no-store, must-revalidate',
-                // ✅ UPDATED: Expose new header to client
                 'Access-Control-Expose-Headers': 'X-Original-Filename, X-Remaining-Clicks, X-Password-Hash-Base64, X-Nonce-Base64, X-Pwhash-Salt-Base64',
             },
         });
 
     } catch (error) {
-        console.error('Download error:', error instanceof Error ? error.message : error);
-        return c.json({
-            success: false,
-            error: 'Download failed - internal server error'
-        }, 500);
+        console.error('Download error:', error);
+        return c.json({ success: false, error: 'Download failed - internal server error' }, 500);
     }
 });
 

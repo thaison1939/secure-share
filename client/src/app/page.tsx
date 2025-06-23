@@ -15,7 +15,7 @@ const MAX_FILE_SIZE_MB = parseInt(process.env.NEXT_PUBLIC_MAX_FILE_SIZE_MB || '1
 const DEFAULT_CLICK_LIMIT = parseInt(process.env.NEXT_PUBLIC_DEFAULT_CLICK_LIMIT || '1');
 // API_BASE_URL should point to your Next.js frontend base URL for generating the share link.
 // For Vercel/Cloudflare Pages deployments, this would often be the root domain.
-const API_BASE_URL = process.env.NEXT_PUBLIC_VERCEL_URL ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}` : 'http://localhost:3000';
+const API_BASE_URL = process.env.NEXT_PUBLIC_VERCEL_URL ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}` : window.location.origin;
 
 
 export default function HomePage() {
@@ -106,7 +106,7 @@ export default function HomePage() {
         fileSize: selectedFile.size, 
         passwordHashBase64: encryptionResult.passwordHashBase64,
         nonceBase64: encryptionResult.nonceBase64,
-        pwhashSaltBase64: encryptionResult.pwhashSaltBase64, // ✅ NEW FIELD
+        pwhashSaltBase64: encryptionResult.pwhashSaltBase64, 
       };
 
       // 4. Upload encrypted file with progress
