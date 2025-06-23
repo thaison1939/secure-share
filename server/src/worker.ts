@@ -281,6 +281,14 @@ app.get('/api/download/:uuid', async (c) => {
 
         // Get file metadata from Redis
         const metadataString = await redis.get(`file:${uuid}`);
+
+        console.log('Redis raw response:', {
+            type: typeof metadataString,
+            value: metadataString,
+            isString: typeof metadataString === 'string',
+            isObject: typeof metadataString === 'object'
+        });
+
         if (!metadataString) {
             console.warn(`File not found or expired: ${uuid}`);
             return c.json({ success: false, error: 'File not found or expired' }, 404);
@@ -366,7 +374,7 @@ app.get('/api/download/:uuid', async (c) => {
     } catch (error) {
         console.error('Download error:', error);
         return c.json({ success: false, error: 'Download failed - internal server error' }, 500);
-    }
+   }
 });
 
 // Cleanup endpoint (for testing/manual trigger, consider removing or securing in production)
