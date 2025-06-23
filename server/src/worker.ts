@@ -9,7 +9,7 @@ import { Redis } from '@upstash/redis/cloudflare';
 
 // Cloudflare Worker environment bindings interface
 interface Bindings {
-    SECURE_SHARE_BUCKET: R2Bucket;
+    R2_BUCKET: R2Bucket;
     UPSTASH_REDIS_REST_URL: string;
     UPSTASH_REDIS_REST_TOKEN: string;
     UPLOAD_AUTH_SECRET: string;
@@ -205,7 +205,7 @@ app.post('/api/upload', async (c) => {
         const fileBuffer = await file.arrayBuffer();
         console.log(`Attempting to store file in R2 with UUID: ${uuid}, Size: ${fileBuffer.byteLength} bytes`);
 
-        await env.SECURE_SHARE_BUCKET.put(uuid, fileBuffer, {
+        await env.R2_BUCKET.put(uuid, fileBuffer, {
             // R2 automatically infers content type for some types, but specifying is good.
             httpMetadata: {
                 contentType: file.type || 'application/octet-stream', // Use original file type if available, fallback
@@ -324,7 +324,7 @@ app.get('/api/download/:uuid', async (c) => {
             console.warn(`File expired: ${uuid}, expired at: ${new Date(metadata.expiresAt)}`);
             // Clean up expired file
             await redis.del(`file:${uuid}`);
-            await env.R2_BUCKET.delete(`files/${uuid}`);
+            await env.R2_BUCKET.delete(uuid);
             return c.json({ success: false, error: 'File expired' }, 410);
         }
 
@@ -335,7 +335,7 @@ app.get('/api/download/:uuid', async (c) => {
         }
 
         // Download file from R2
-        const fileObject = await env.R2_BUCKET.get(`files/${uuid}`);
+        const fileObject = await env.R2_BUCKET.get(uuid);
         if (!fileObject) {
             console.error(`File not found in R2: ${uuid}`);
             return c.json({ success: false, error: 'File not found in storage' }, 404);
@@ -355,14 +355,12 @@ app.get('/api/download/:uuid', async (c) => {
 
         console.log(`File download successful: ${uuid}, remaining clicks: ${remainingClicks}`);
 
-        // ✅ RETURN FILE: With all required headers including pwhashSaltBase64
         return new Response(fileObject.body, {
             headers: {
                 'Content-Type': fileObject.httpMetadata?.contentType || 'application/octet-stream',
                 'Content-Disposition': `attachment; filename="${encodeURIComponent(metadata.originalFilename || 'downloaded-file')}"`,
                 'X-Original-Filename': encodeURIComponent(metadata.originalFilename || 'downloaded-file'),
                 'X-Remaining-Clicks': remainingClicks.toString(),
-                // ✅ ALL PASSWORD HEADERS: Include all three required fields
                 'X-Password-Hash-Base64': metadata.passwordHashBase64,
                 'X-Nonce-Base64': metadata.nonceBase64,
                 'X-Pwhash-Salt-Base64': metadata.pwhashSaltBase64, // ✅ NEW FIELD
@@ -444,7 +442,7 @@ async function handleCleanup(env: Bindings): Promise<void> {
                 if (!metadataJson) {
                     // Metadata has expired in Redis, so delete corresponding R2 object and click counter
                     console.log(`Cleanup: Metadata for UUID ${uuid} expired in Redis. Deleting from R2 and clicks counter.`);
-                    await env.SECURE_SHARE_BUCKET.delete(uuid);
+                    await env.R2_BUCKET.delete(uuid);
                     totalR2Deleted++;
                     await redis.del(`clicks:${uuid}`);
                     totalRedisClicksDeleted++;
