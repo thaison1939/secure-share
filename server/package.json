@@ -9,6 +9,7 @@
     "deploy:dev": "wrangler deploy --env development",
     "deploy:prod": "wrangler deploy --env production",
     "tail": "wrangler tail",
+    "test": "echo \"No tests configured\" && exit 0",
     "secret:put": "wrangler secret put",
     "type-check": "tsc --noEmit",
     "setup-secrets": "echo 'Run: npm run secret:put UPLOAD_AUTH_SECRET && npm run secret:put UPSTASH_REDIS_REST_URL && npm run secret:put UPSTASH_REDIS_REST_TOKEN'"

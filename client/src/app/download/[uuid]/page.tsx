@@ -94,7 +94,6 @@ export default function DownloadPage({ params }: DownloadPageProps) {
       });
 
       setOriginalFilename(downloadResponse.filename || `file-${uuid}`);
-      setFileSize(downloadResponse.fileSize || null);
       setRemainingClicks(downloadResponse.remainingDownloads);
       setDownloadStatus('idle');
 

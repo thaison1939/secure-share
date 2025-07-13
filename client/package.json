@@ -7,7 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "type-check": "tsc --noEmit"
+    "type-check": "tsc --noEmit",
+    "test": "echo \"No tests configured\" && exit 0",
+    "test:coverage": "echo \"No coverage configured\" && exit 0"
   },
   "dependencies": {
     "@types/react": "^18.0.0",

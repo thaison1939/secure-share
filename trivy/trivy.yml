@@ -1,0 +1,19 @@
+# trivy/trivy.yaml
+format: sarif
+output: trivy-results.sarif
+severity:
+  - CRITICAL
+  - HIGH
+  - MEDIUM
+ignore-unfixed: true
+vuln-type:
+  - os
+  - library
+scanners:
+  - vuln
+  - secret
+  - config
+cache:
+  clear: false
+  dir: /tmp/trivy-cache
+timeout: 10m

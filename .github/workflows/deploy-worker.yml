@@ -40,22 +40,6 @@ jobs:
         working-directory: ./server
 
       # --- DIAGNOSTIC STEP: Check if secrets are correctly exposed as environment variables ---
-      - name: Verify Environment Variables
-        run: |
-          echo "--- Verifying Environment Variables for Deployment ---"
-          # Check if the variable is set (prints 'x' if set, nothing if not)
-          # The actual value will be masked with '***' by GitHub Actions for security
-          echo "UPLOAD_AUTH_SECRET is set: ${UPLOAD_AUTH_SECRET+x}"
-          echo "UPLOAD_AUTH_SECRET value (masked): ${UPLOAD_AUTH_SECRET}"
-          echo "UPSTASH_REDIS_REST_URL is set: ${UPSTASH_REDIS_REST_URL+x}"
-          echo "UPSTASH_REDIS_REST_URL value (masked): ${UPSTASH_REDIS_REST_URL}"
-          echo "UPSTASH_REDIS_REST_TOKEN is set: ${UPSTASH_REDIS_REST_TOKEN+x}"
-          echo "UPSTASH_REDIS_REST_TOKEN value (masked): ${UPSTASH_REDIS_REST_TOKEN}"
-          echo "CF_API_TOKEN is set: ${CF_API_TOKEN+x}" # This one is passed directly to with.apiToken, but good to check.
-          echo "CF_API_TOKEN value (masked): ${CF_API_TOKEN}"
-          echo "----------------------------------------------------"
-      # --------------------------------------------------------------------------------------
-
       - name: Deploy Worker
         uses: cloudflare/wrangler-action@v3 # Use the official Wrangler GitHub Action
         with:

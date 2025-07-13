@@ -1,0 +1,18 @@
+# k8s/apps/secure-share/configmap.yml
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: secure-share-config
+  namespace: production
+data:
+  api-url: "https://your-worker.your-subdomain.workers.dev"
+  node-env: "production"
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: secure-share-secrets
+  namespace: production
+type: Opaque
+data:
+  upload-auth-secret: <base64-encoded-secret>

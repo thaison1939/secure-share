@@ -25,7 +25,6 @@ export async function POST(request: NextRequest) {
       }, { status: 500 });
     }
 
-    console.log(`Proxying upload request to Worker: ${workerUrl}/api/upload`);
 
     // Get the form data from the request
     const formData = await request.formData();
@@ -39,7 +38,6 @@ export async function POST(request: NextRequest) {
       body: formData, // Forward the form data directly
     });
 
-    console.log(`Worker upload response status: ${workerResponse.status}`);
 
     if (!workerResponse.ok) {
       const errorText = await workerResponse.text();
