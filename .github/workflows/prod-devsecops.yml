@@ -37,13 +37,12 @@ jobs:
         run: npm run test:coverage || true
 
       - name: SonarQube Scan
-        uses: sonarqube-quality-gate-action@master
+        uses: sonarcloud-github-action@master
         with:
           scanMetadataReportFile: client/coverage/sonar-report.xml
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-          SONAR_HOST_URL: ${{ secrets.SONAR_HOST_URL }}
 
       # Trivy Filesystem Scan
       - name: Run Trivy vulnerability scanner (filesystem)

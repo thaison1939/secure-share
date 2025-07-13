@@ -9,17 +9,21 @@
     "deploy:dev": "wrangler deploy --env development",
     "deploy:prod": "wrangler deploy --env production",
     "tail": "wrangler tail",
-    "test": "echo \"No tests configured\" && exit 0",
+    "test": "jest",
+    "test:coverage": "jest --coverage",
     "secret:put": "wrangler secret put",
     "type-check": "tsc --noEmit",
     "setup-secrets": "echo 'Run: npm run secret:put UPLOAD_AUTH_SECRET && npm run secret:put UPSTASH_REDIS_REST_URL && npm run secret:put UPSTASH_REDIS_REST_TOKEN'"
   },
   "dependencies": {
-    "hono": "^3.12.0",
-    "@upstash/redis": "^1.28.0"
+    "@upstash/redis": "^1.28.0",
+    "hono": "^3.12.0"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240620.0",
+    "@types/jest": "^30.0.0",
+    "jest": "^30.0.4",
+    "ts-jest": "^29.4.0",
     "typescript": "^5.0.0",
     "wrangler": "^3.60.0"
   }
