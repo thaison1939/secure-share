@@ -204,13 +204,13 @@ export default function DownloadPage({ params }: DownloadPageProps) {
         <h1>Download Secure File</h1>
         
         {/* File info when loaded */}
-        {serverMetadata && originalFilename && (
+        {!!(serverMetadata && originalFilename) && (
           <div className="upload-container" style={{marginBottom: '10px'}}>
             <div className="border-container success">
               <div className="selected-file">
                 <i className="fas fa-file selected-file-icon" style={{color: '#22c55e'}}></i>
                 <p className="selected-file-name">{originalFilename}</p>
-                {fileSize && (
+                {!!fileSize && (
                   <p className="selected-file-size">
                     {formatFileSize(fileSize)}
                   </p>
@@ -231,7 +231,7 @@ export default function DownloadPage({ params }: DownloadPageProps) {
         )}
 
         {/* Password input */}
-        {serverMetadata && downloadStatus === 'idle' && (
+        {!!(serverMetadata && downloadStatus === 'idle') && (
           <div className="form-section">
             <label className="form-label">
               <i className="fas fa-lock lock-icon"></i>
@@ -252,7 +252,7 @@ export default function DownloadPage({ params }: DownloadPageProps) {
         )}
 
         {/* Download button */}
-        {serverMetadata && downloadStatus === 'idle' && (
+        {!!(serverMetadata && downloadStatus === 'idle') && (
           <button
             onClick={async () => {
               // Increment counter on server (regardless of password success)
@@ -310,7 +310,7 @@ export default function DownloadPage({ params }: DownloadPageProps) {
         )}
 
         {/* Processing state */}
-        {isProcessing && (
+        {!!isProcessing && (
           <>
             <div className="upload-container">
               <div className="border-container" style={{textAlign: 'center', padding: '30px'}}>
@@ -354,7 +354,7 @@ export default function DownloadPage({ params }: DownloadPageProps) {
         )}
 
         {/* Error state */}
-        {downloadStatus === 'error' && errorMessage && (
+        {!!(downloadStatus === 'error' && errorMessage) && (
           <div className="share-container" style={{backgroundColor: '#fef2f2', borderColor: 'rgba(220, 38, 38, 0.3)'}}>
             <h3 className="share-title" style={{color: '#dc2626'}}>
               <i className="fas fa-exclamation-triangle" style={{marginRight: '8px'}}></i>
