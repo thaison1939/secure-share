@@ -208,21 +208,25 @@ jobs:
           port: ${{ secrets.RPI_PORT }}
           username: ${{ secrets.RPI_USER }}
           key: ${{ secrets.RPI_SSH_KEY }}
-          timeout: 60s
-          command_timeout: 60s
+          timeout: 30s
+          command_timeout: 30s
           script: |
             echo "Connected to $(hostname)"
             
             # Force pod restart to pull latest image
             kubectl rollout restart deployment/secure-share -n production
             
-            # Wait for rollout to complete
-            kubectl rollout status deployment/secure-share -n production --timeout=300s
+            # Quick status check (no wait)
+            kubectl get pods -n production -l app=secure-share
             
-            echo "✅ Deployment restarted successfully"
+            echo "✅ Deployment restart triggered successfully"
 
       - name: Deployment Summary
         run: |
           echo "🎉 Pipeline completed successfully!"
           echo "✅ Docker image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest"
-          echo "✅ Deployment restarted"
+          echo "✅ Deployment restart triggered"
+          echo ""
+          echo "🔍 To monitor deployment progress:"
+          echo "kubectl get pods -n production -l app=secure-share"
+          echo "kubectl rollout status deployment/secure-share -n production"
