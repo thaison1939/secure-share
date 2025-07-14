@@ -187,7 +187,7 @@ jobs:
       - name: Build and push Docker image
         run: |
           # Build with latest tag only (simple)
-          docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest -f docker/Dockerfile.simple client/
+          docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest -f docker/Dockerfile.rpi client/
           
           # Push latest tag
           docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
