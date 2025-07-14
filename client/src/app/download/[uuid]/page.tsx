@@ -50,6 +50,16 @@ export default function DownloadPage({ params }: DownloadPageProps) {
     handleInitialDownload();
   }, [uuid, toast]);
 
+  const resetToInitialState = () => {
+    setDownloadStatus('idle');
+    setErrorMessage(null);
+    setPassword('');
+    setFileDeleted(false);
+    setServerMetadata(null);
+    setOriginalFilename(null);
+    setRemainingClicks(undefined);
+  };
+
   const handleInitialDownload = async () => {
     setDownloadStatus('downloading');
     setErrorMessage(null);
@@ -307,9 +317,6 @@ export default function DownloadPage({ params }: DownloadPageProps) {
               <i className="fas fa-exclamation-triangle" style={{marginRight: '8px'}}></i>
               Download Limit Reached
             </h3>
-            <p style={{margin: '10px 0', color: '#dc2626', fontSize: '0.9em'}}>
-              This file has reached its maximum download limit and is no longer available.
-            </p>
           </div>
         )}
 
@@ -344,7 +351,7 @@ export default function DownloadPage({ params }: DownloadPageProps) {
               File '{originalFilename || 'downloaded-file'}' has been downloaded and decrypted.
             </p>
             <button 
-              onClick={() => window.location.reload()}
+              onClick={resetToInitialState}
               className="copy-btn"
               style={{backgroundColor: '#16a34a'}}
             >
@@ -368,12 +375,19 @@ export default function DownloadPage({ params }: DownloadPageProps) {
               {errorMessage}
             </p>
             <button 
-              onClick={() => window.location.reload()}
+              onClick={() => {
+                // Only reload if file might still exist (not deleted)
+                if (fileDeleted) {
+                  resetToInitialState();
+                } else {
+                  window.location.reload();
+                }
+              }}
               className="copy-btn"
               style={{backgroundColor: '#dc2626'}}
             >
               <i className="fas fa-redo" style={{marginRight: '8px'}}></i>
-              Try Again
+              {fileDeleted ? 'Reset' : 'Try Again'}
             </button>
           </div>
         )}
