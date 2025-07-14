@@ -218,7 +218,7 @@ jobs:
           port: 22
           timeout: 60s
           command_timeout: 60s
-          debug: true  # Add this for debugging
+          debug: true
           script: |
             # Test connection first
             echo "Connected to $(hostname)"
@@ -234,4 +234,10 @@ jobs:
             # Refresh the application
             kubectl annotate application secure-share-app -n argocd \
               argocd.argoproj.io/refresh=hard --overwrite
+            
+            # Wait for sync to complete
+            kubectl wait --for=condition=Synced application/secure-share-app -n argocd --timeout=300s
+            
+            # Wait for deployment rollout
+            kubectl rollout status deployment/secure-share -n production --timeout=300s
 
