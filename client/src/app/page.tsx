@@ -11,7 +11,7 @@ import { useToast } from '@/components/ui/use-toast';
 const FILE_CONFIG = getFileConfigFromEnv();
 const MAX_FILE_SIZE_MB = parseInt(process.env.NEXT_PUBLIC_MAX_FILE_SIZE_MB || '100');
 const DEFAULT_DOWNLOAD_LIMIT = 5;
-const API_BASE_URL = process.env.NEXT_PUBLIC_VERCEL_URL ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}` : `http://localhost:3001`;
+const API_BASE_URL = `https://secured-share.org`;
 
 export default function HomePage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -124,7 +124,6 @@ export default function HomePage() {
       });
       
       const encryptionResult: EncryptionResult = await encryptFile(selectedFile, password);
-      console.log('File encrypted client-side.');
       encryptionToast.dismiss();
 
       const uploadRequest = {

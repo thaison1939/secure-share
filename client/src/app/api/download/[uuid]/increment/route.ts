@@ -24,7 +24,6 @@ export async function POST(
     }
 
     const { uuid } = params;
-    console.log(`Proxying increment request to Worker: ${workerUrl}/api/download/${uuid}/increment`);
 
     const workerResponse = await fetch(`${workerUrl}/api/download/${uuid}/increment`, {
       method: 'POST',
@@ -34,7 +33,6 @@ export async function POST(
       },
     });
 
-    console.log(`Worker increment response status: ${workerResponse.status}`);
 
     if (!workerResponse.ok) {
       const errorText = await workerResponse.text();
@@ -46,7 +44,6 @@ export async function POST(
     }
 
     const result = await workerResponse.json();
-    console.log('Increment proxy successful');
     return NextResponse.json(result);
 
   } catch (error) {
