@@ -354,8 +354,11 @@ export default function DownloadPage({ params }: DownloadPageProps) {
             ) : (
               <button 
                 onClick={() => {
-                  resetToInitialState();
-                  setTimeout(() => handleInitialDownload(), 100);
+                  // Don't reset everything - just reset UI state
+                  setDownloadStatus('idle');
+                  setErrorMessage(null);
+                  setPassword('');
+                  // Keep serverMetadata and remainingClicks as they are
                 }}
                 className="copy-btn"
                 style={{backgroundColor: '#16a34a'}}
