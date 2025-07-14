@@ -322,22 +322,16 @@ export default function DownloadPage({ params }: DownloadPageProps) {
 
         {/* Processing state */}
         {!!isProcessing && (
-          <>
-            <div className="upload-container">
-              <div className="border-container" style={{textAlign: 'center', padding: '30px'}}>
-                <div style={{fontSize: '3rem', color: '#95afc0', marginBottom: '20px'}}>
-                  <i className="fas fa-spinner fa-spin"></i>
-                </div>
-                <p style={{margin: '0', fontSize: '1.1em', fontWeight: '600'}}>
-                  {downloadStatus === 'downloading' ? 'Fetching Encrypted File...' : 'Verifying Password & Decrypting...'}
-                </p>
+          <div className="upload-container">
+            <div className="border-container" style={{textAlign: 'center', padding: '30px'}}>
+              <div style={{fontSize: '3rem', color: '#95afc0', marginBottom: '20px'}}>
+                <i className="fas fa-spinner fa-spin"></i>
               </div>
+              <p style={{margin: '0', fontSize: '1.1em', fontWeight: '600'}}>
+                {downloadStatus === 'downloading' ? 'Fetching Encrypted File...' : 'Verifying Password & Decrypting...'}
+              </p>
             </div>
-            
-            <div className="progress-container">
-              <div className="progress-bar" style={{ width: '100%', animation: 'pulse 2s infinite' }}></div>
-            </div>
-          </>
+          </div>
         )}
 
         {/* Success state */}
@@ -350,14 +344,27 @@ export default function DownloadPage({ params }: DownloadPageProps) {
             <p style={{margin: '10px 0', color: '#15803d'}}>
               File '{originalFilename || 'downloaded-file'}' has been downloaded and decrypted.
             </p>
-            <button 
-              onClick={resetToInitialState}
-              className="copy-btn"
-              style={{backgroundColor: '#16a34a'}}
-            >
-              <i className="fas fa-redo" style={{marginRight: '8px'}}></i>
-              Try Another Download
-            </button>
+            
+            {/* Check if file was deleted after download */}
+            {fileDeleted || (typeof remainingClicks === 'number' && remainingClicks <= 0) ? (
+              <p style={{margin: '10px 0', color: '#dc2626', fontSize: '0.9em'}}>
+                <i className="fas fa-info-circle" style={{marginRight: '8px'}}></i>
+                This file has been permanently deleted from the server.
+              </p>
+            ) : (
+              <button 
+                onClick={() => {
+                  resetToInitialState();
+                  setTimeout(() => handleInitialDownload(), 100);
+                }}
+                className="copy-btn"
+                style={{backgroundColor: '#16a34a'}}
+              >
+                <i className="fas fa-redo" style={{marginRight: '8px'}}></i>
+                Try Another Download ({remainingClicks || 0} left)
+              </button>
+            )}
+            
             <div className="important-text">
               The file should have automatically downloaded to your device.
             </div>
