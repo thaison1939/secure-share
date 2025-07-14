@@ -193,7 +193,7 @@ jobs:
       - name: Build and push Docker image
         run: |
           # Build with both SHA and latest tags
-          docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} -f client/Dockerfile client/
+          docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} -f client/Dockerfile.rpi client/
           docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
           
           # Push both tags
