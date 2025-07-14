@@ -212,8 +212,8 @@ jobs:
       - name: Trigger ArgoCD sync via SSH
         uses: appleboy/ssh-action@v1.0.0
         with:
-          host: ${{ secrets.RPI_HOST }}      # e.g., 0.tcp.ap.ngrok.io
-          port: ${{ secrets.RPI_PORT }}      # e.g., 12345
+          host: ${{ secrets.RPI_HOST }}      
+          port: ${{ secrets.RPI_PORT }}      
           username: ${{ secrets.RPI_USER }}
           key: ${{ secrets.RPI_SSH_KEY }}
           timeout: 30s
