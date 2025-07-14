@@ -13,7 +13,6 @@ spec:
     metadata:
       labels:
         app: secure-share
-        version: v1  # Required for Istio service mesh
     spec:
       imagePullSecrets:
         - name: ghcr-secret
