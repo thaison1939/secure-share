@@ -1,0 +1,45 @@
+# k8s/apps/secure-share/istio-resources.yml
+apiVersion: networking.istio.io/v1beta1
+kind: VirtualService
+metadata:
+  name: secure-share-vs
+  namespace: production
+spec:
+  hosts:
+  - secure-share-service
+  http:
+  - match:
+    - uri:
+        prefix: /
+    route:
+    - destination:
+        host: secure-share-service
+        port:
+          number: 80
+---
+apiVersion: networking.istio.io/v1beta1
+kind: DestinationRule
+metadata:
+  name: secure-share-dr
+  namespace: production
+spec:
+  host: secure-share-service
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
+  subsets:
+  - name: v1
+    labels:
+      version: v1
+---
+apiVersion: security.istio.io/v1beta1
+kind: PeerAuthentication
+metadata:
+  name: secure-share-peerauth
+  namespace: production
+spec:
+  selector:
+    matchLabels:
+      app: secure-share
+  mtls:
+    mode: STRICT

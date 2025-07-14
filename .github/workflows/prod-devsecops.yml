@@ -190,17 +190,22 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Load and push Docker image
+      - name: Build and push Docker image
         run: |
-          docker load --input /tmp/secure-share-image.tar
-          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
+          # Build with both SHA and latest tags
+          docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} -f client/Dockerfile client/
           docker tag ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }} ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          
+          # Push both tags
+          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
           docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          
+          echo "✅ Pushed: ${{ github.sha }} and latest"
 
       - name: Update K8s deployment manifest
         run: |
-          # Update to specific SHA tag for traceability
-          sed -i "s|image: ghcr.io/.*/secure-share:.*|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}|g" k8s/apps/secure-share/deployment.yml
+          # Update to latest tag for automatic deployments
+          sed -i "s|image: ghcr.io/.*/secure-share:.*|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest|g" k8s/apps/secure-share/deployment.yml
           
           # Verify the change
           echo "Updated deployment.yml:"
