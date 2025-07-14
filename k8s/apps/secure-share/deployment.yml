@@ -16,7 +16,7 @@ spec:
     spec:
       containers:
       - name: secure-share
-        image: ghcr.io/thaison1939/secure-share:latest
+        image: ghcr.io/thaison1939/secure-share:7e7456e8b69d3e0f91ca7db90a0281a0ada86905
         ports:
         - containerPort: 3000
         resources:
