@@ -22,6 +22,7 @@ export default function DownloadPage({ params }: DownloadPageProps) {
   const [fileSize, setFileSize] = useState<number | null>(null);
   const [remainingClicks, setRemainingClicks] = useState<number | undefined>(undefined);
   const [password, setPassword] = useState<string>('');
+  const [fileDeleted, setFileDeleted] = useState(false);
 
   const [serverMetadata, setServerMetadata] = useState<{
     passwordHashBase64: string;
@@ -204,7 +205,7 @@ export default function DownloadPage({ params }: DownloadPageProps) {
         <h1>Download Secure File</h1>
         
         {/* File info when loaded */}
-        {!!(serverMetadata && originalFilename) && (
+        {!!(serverMetadata && originalFilename && !fileDeleted) && (
           <div className="upload-container" style={{marginBottom: '10px'}}>
             <div className="border-container success">
               <div className="selected-file">
@@ -252,7 +253,7 @@ export default function DownloadPage({ params }: DownloadPageProps) {
         )}
 
         {/* Download button */}
-        {!!(serverMetadata && downloadStatus === 'idle') && (
+        {!!(serverMetadata && downloadStatus === 'idle' && !fileDeleted) && (
           <button
             onClick={async () => {
               // Increment counter on server (regardless of password success)
@@ -268,11 +269,14 @@ export default function DownloadPage({ params }: DownloadPageProps) {
                   const data = await response.json();
                   if (data.fileDeleted) {
                     // File was deleted due to limit reached
-                    setErrorMessage("Download limit reached. File has been deleted.");
+                    setErrorMessage("Download limit reached. File has been permanently deleted from the server.");
+                    setFileDeleted(true);
                     setDownloadStatus('error');
+                    setServerMetadata(null); // ✅ HIDE FILE INFO
+                    setRemainingClicks(0);   // ✅ UPDATE COUNTER
                     return;
                   }
-                  // Update remaining count using new field name
+                  // Update remaining count
                   setRemainingClicks(data.remainingDownloads);
                 } else {
                   const errorData = await response.json();
@@ -289,7 +293,7 @@ export default function DownloadPage({ params }: DownloadPageProps) {
               handlePasswordAndDecrypt();
             }}
             className="upload-btn"
-            disabled={!password || (typeof remainingClicks === 'number' && remainingClicks <= 0)}
+            disabled={!password || fileDeleted || (typeof remainingClicks === 'number' && remainingClicks <= 0)}
           >
             <i className="fas fa-download" style={{marginRight: '8px'}}></i>
             Decrypt & Download File ({remainingClicks || 0} left)
