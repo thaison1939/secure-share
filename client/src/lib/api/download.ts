@@ -18,7 +18,7 @@ export interface DownloadResponse {
  */
 export async function downloadEncryptedFile(uuid: string): Promise<DownloadResponse> {
   try {
-    const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/download/${uuid}`, {
+    const response = await fetch(`/api/download/${uuid}`, {
       method: 'GET',
     });
 
