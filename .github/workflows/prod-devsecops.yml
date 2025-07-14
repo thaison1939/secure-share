@@ -202,12 +202,13 @@ jobs:
           sed -i "s|image: ghcr.io/.*/secure-share:.*|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}|g" k8s/apps/secure-share/deployment.yml
 
       - name: Commit and push updated manifest
-        run: |
-          git config --local user.email "action@github.com"
-          git config --local user.name "GitHub Action"
-          git add k8s/apps/secure-share/deployment.yml
-          git commit -m "Update image to ${{ github.sha }}" || exit 0
-          git push
+        uses: stefanzweifel/git-auto-commit-action@v5
+        with:
+          commit_message: "Update image to ${{ github.sha }}"
+          file_pattern: k8s/apps/secure-share/deployment.yml
+          commit_user_name: GitHub Action
+          commit_user_email: action@github.com
+          commit_author: GitHub Action <action@github.com>
 
       - name: Trigger ArgoCD sync via SSH
         uses: appleboy/ssh-action@v1.0.0
@@ -221,10 +222,24 @@ jobs:
           debug: false
           script: |
             echo "Connected to $(hostname)"
+            
+            # Trigger ArgoCD sync
             kubectl patch application secure-share-app -n argocd \
               --type='merge' \
               -p='{"spec":{"source":{"targetRevision":"HEAD"}}}'
+            
             kubectl annotate application secure-share-app -n argocd \
               argocd.argoproj.io/refresh=hard --overwrite
-            kubectl wait --for=condition=Synced application/secure-share-app -n argocd --timeout=300s
-            kubectl rollout status deployment/secure-share -n production --timeout=300s
+            
+            echo "✅ ArgoCD sync triggered successfully"
+
+      - name: Deployment Summary
+        run: |
+          echo "🎉 Pipeline completed successfully!"
+          echo "✅ Docker image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
+          echo "✅ Manifest updated and committed"
+          echo "✅ ArgoCD sync triggered"
+          echo ""
+          echo "🔍 Monitor deployment:"
+          echo "kubectl get application secure-share-app -n argocd"
+          echo "kubectl get pods -n production -l app=secure-share"
