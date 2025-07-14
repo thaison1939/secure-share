@@ -115,7 +115,6 @@ export default function HomePage() {
 
     try {
       const uuid = generateSecureUUID();
-      console.log('Generated UUID:', uuid);
 
       const encryptionToast = toast({
         title: "Encrypting File...",
