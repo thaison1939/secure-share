@@ -1,3 +1,4 @@
+# client/.dockerignore
 node_modules
 .next
 .git

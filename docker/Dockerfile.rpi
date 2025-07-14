@@ -17,6 +17,8 @@ COPY package.json package-lock.json* ./
 RUN npm ci --frozen-lockfile
 
 COPY . .
+# Ensure public directory exists before build
+RUN mkdir -p public
 RUN npm run build
 
 # Production image, copy all the files and run next
@@ -32,8 +34,8 @@ COPY --from=deps --chown=nextjs:nodejs /app/node_modules ./node_modules
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# Copy public directory only if it exists
-COPY --from=builder --chown=nextjs:nodejs /app/public* ./public/ || true
+# Copy public directory (now it definitely exists)
+COPY --from=builder --chown=nextjs:nodejs /app/public ./public
 
 USER nextjs
 
