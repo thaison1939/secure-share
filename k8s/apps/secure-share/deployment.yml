@@ -16,6 +16,11 @@ spec:
         version: v1  # Required for Istio service mesh
       annotations:
         sidecar.istio.io/inject: "true"  # Enable Istio injection
+        # 👈 Add these Istio resource limits for Raspberry Pi
+        sidecar.istio.io/proxyCPULimit: "100m"
+        sidecar.istio.io/proxyMemoryLimit: "256Mi"
+        sidecar.istio.io/proxyCPU: "50m"
+        sidecar.istio.io/proxyMemory: "128Mi"
     spec:
       imagePullSecrets:
         - name: ghcr-secret
