@@ -212,31 +212,19 @@ jobs:
       - name: Trigger ArgoCD sync via SSH
         uses: appleboy/ssh-action@v1.0.0
         with:
-          host: ${{ secrets.RPI_HOST }}
+          host: ${{ secrets.RPI_HOST }}      # e.g., 0.tcp.ap.ngrok.io
+          port: ${{ secrets.RPI_PORT }}      # e.g., 12345
           username: ${{ secrets.RPI_USER }}
           key: ${{ secrets.RPI_SSH_KEY }}
-          port: 22
-          timeout: 60s
-          command_timeout: 60s
-          debug: true
+          timeout: 30s
+          command_timeout: 30s
+          debug: false
           script: |
-            # Test connection first
             echo "Connected to $(hostname)"
-            
-            # Check if kubectl is available
-            which kubectl
-            
-            # Force ArgoCD to sync the application
             kubectl patch application secure-share-app -n argocd \
               --type='merge' \
               -p='{"spec":{"source":{"targetRevision":"HEAD"}}}'
-            
-            # Refresh the application
             kubectl annotate application secure-share-app -n argocd \
               argocd.argoproj.io/refresh=hard --overwrite
-            
-            # Wait for sync to complete
             kubectl wait --for=condition=Synced application/secure-share-app -n argocd --timeout=300s
-            
-            # Wait for deployment rollout
             kubectl rollout status deployment/secure-share -n production --timeout=300s
