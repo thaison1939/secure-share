@@ -13,23 +13,25 @@ spec:
     metadata:
       labels:
         app: secure-share
+        version: v1
+      annotations:
+        sidecar.istio.io/inject: "false"  # ✅ Explicitly disable Istio injection
     spec:
       imagePullSecrets:
         - name: ghcr-secret
       containers:
       - name: secure-share
-        image: ghcr.io/thaison1939/secure-share:latest  # Use latest tag
+        image: ghcr.io/thaison1939/secure-share:latest
         imagePullPolicy: Always
         ports:
         - containerPort: 3000
-          name: http  # Named port for Istio
         resources:
           requests:
+            memory: "128Mi"
+            cpu: "50m"
+          limits:
             memory: "256Mi"
             cpu: "200m"
-          limits:
-            memory: "512Mi"
-            cpu: "500m"
         env:
         - name: NODE_ENV
           value: "production"
@@ -40,13 +42,12 @@ spec:
             secretKeyRef:
               name: secure-share-secrets
               key: upload-auth-secret
-        # Health probes with longer timeouts for Istio
         livenessProbe:
           httpGet:
             path: /api/health
             port: 3000
             scheme: HTTP
-          initialDelaySeconds: 90  # Longer for Istio startup
+          initialDelaySeconds: 30
           periodSeconds: 10
           timeoutSeconds: 5
           failureThreshold: 3
@@ -55,7 +56,7 @@ spec:
             path: /api/health
             port: 3000
             scheme: HTTP
-          initialDelaySeconds: 45  # Longer for Istio startup
+          initialDelaySeconds: 10
           periodSeconds: 5
           timeoutSeconds: 3
           failureThreshold: 3
@@ -64,26 +65,22 @@ spec:
             path: /api/health
             port: 3000
             scheme: HTTP
-          initialDelaySeconds: 15
+          initialDelaySeconds: 5
           periodSeconds: 5
           timeoutSeconds: 3
-          failureThreshold: 60  # Very generous startup time
+          failureThreshold: 12
 ---
 apiVersion: v1
 kind: Service
 metadata:
   name: secure-share-service
   namespace: production
-  labels:
-    app: secure-share
-    service: secure-share  # Required for Istio
 spec:
   selector:
     app: secure-share
   type: NodePort
   ports:
-  - name: http  # Named port for Istio
-    port: 80
+  - port: 80
     targetPort: 3000
     nodePort: 30080
     protocol: TCP
