@@ -215,7 +215,17 @@ jobs:
           host: ${{ secrets.RPI_HOST }}
           username: ${{ secrets.RPI_USER }}
           key: ${{ secrets.RPI_SSH_KEY }}
+          port: 22
+          timeout: 60s
+          command_timeout: 60s
+          debug: true  # Add this for debugging
           script: |
+            # Test connection first
+            echo "Connected to $(hostname)"
+            
+            # Check if kubectl is available
+            which kubectl
+            
             # Force ArgoCD to sync the application
             kubectl patch application secure-share-app -n argocd \
               --type='merge' \
