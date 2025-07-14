@@ -177,6 +177,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Login to Container Registry
         uses: docker/login-action@v3
         with:
@@ -185,14 +191,15 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push Docker image
-        run: |
-          # Build with latest tag only (simple)
-          docker build -t ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest -f docker/Dockerfile.rpi client/
-          
-          # Push latest tag
-          docker push ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
-          
-          echo "✅ Pushed: latest"
+        uses: docker/build-push-action@v5
+        with:
+          context: ./client
+          file: ./docker/Dockerfile.rpi
+          platforms: linux/arm64
+          push: true
+          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
       - name: Trigger ArgoCD sync via SSH
         uses: appleboy/ssh-action@v1.0.0
