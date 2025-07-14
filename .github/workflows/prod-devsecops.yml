@@ -199,7 +199,12 @@ jobs:
 
       - name: Update K8s deployment manifest
         run: |
+          # Update to specific SHA tag for traceability
           sed -i "s|image: ghcr.io/.*/secure-share:.*|image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}|g" k8s/apps/secure-share/deployment.yml
+          
+          # Verify the change
+          echo "Updated deployment.yml:"
+          grep "image:" k8s/apps/secure-share/deployment.yml
 
       - name: Commit and push updated manifest
         uses: stefanzweifel/git-auto-commit-action@v5

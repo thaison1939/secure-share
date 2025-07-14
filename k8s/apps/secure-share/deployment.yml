@@ -16,7 +16,8 @@ spec:
     spec:
       containers:
       - name: secure-share
-        image: ghcr.io/thaison1939/secure-share:7e7456e8b69d3e0f91ca7db90a0281a0ada86905
+        image: ghcr.io/thaison1939/secure-share:422947a
+        imagePullPolicy: IfNotPresent
         ports:
         - containerPort: 3000
         resources:
@@ -67,12 +68,6 @@ metadata:
 spec:
   selector:
     app: secure-share
-  ports:
-  - name: http
-    port: 80
-    targetPort: 3000
-    protocol: TCP
-  type: NodePort
   ports:
   - name: http
     port: 80
