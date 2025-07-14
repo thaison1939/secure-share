@@ -240,4 +240,3 @@ jobs:
             
             # Wait for deployment rollout
             kubectl rollout status deployment/secure-share -n production --timeout=300s
-
