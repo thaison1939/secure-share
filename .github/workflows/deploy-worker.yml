@@ -14,6 +14,10 @@ jobs:
     runs-on: ubuntu-latest
     name: Deploy Worker
     
+    permissions:
+      contents: read
+      id-token: write # Required for Wrangler to authenticate with Cloudflare
+      actions: read
     # --- NEW FIX: Move the 'env' block to the job level ---
     # This ensures these environment variables are available to ALL steps in this job
     env:

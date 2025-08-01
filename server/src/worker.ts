@@ -80,10 +80,15 @@ app.use('*', cors({
     credentials: true,
 }));
 
+// Error logging helper
+function logError(context: string, error: unknown): void {
+    console.error(`[${context}] Error:`, error instanceof Error ? error.message : String(error));
+}
+
 // Initialize Redis client
 function getRedisClient(env: Bindings): Redis {
     if (!env.UPSTASH_REDIS_REST_URL || !env.UPSTASH_REDIS_REST_TOKEN) {
-        throw new Error('Missing Redis configuration');
+        throw new Error('Missing Redis configuration: UPSTASH_REDIS_REST_URL or UPSTASH_REDIS_REST_TOKEN');
     }
     return new Redis({
         url: env.UPSTASH_REDIS_REST_URL,
@@ -103,6 +108,8 @@ async function checkRateLimit(redis: Redis, clientIP: string, limit: number): Pr
 
         return current <= limit;
     } catch (error) {
+        logError('Rate Limiting', error);
+        // Allow request on Redis error to prevent blocking legitimate users
         return true;
     }
 }
@@ -119,6 +126,8 @@ async function checkPasswordAttempts(redis: Redis, clientIP: string, uuid: strin
 
         return currentAttempts < PASSWORD_ATTEMPT_LIMIT;
     } catch (error) {
+        logError('Password Attempt Check', error);
+        // Allow on Redis error to prevent blocking legitimate users
         return true;
     }
 }
@@ -132,7 +141,8 @@ async function recordPasswordAttempt(redis: Redis, clientIP: string, uuid: strin
             await redis.expire(key, PASSWORD_ATTEMPT_WINDOW_SECONDS);
         }
     } catch (error) {
-        // Silent fail
+        logError('Password Attempt Recording', error);
+        // Don't throw - this is a defensive feature
     }
 }
 
@@ -290,6 +300,7 @@ app.post('/api/upload', async (c) => {
         }, 200);
 
     } catch (error) {
+        logError('Upload', error);
         return c.json({
             success: false,
             error: 'Upload failed - internal server error'
@@ -330,6 +341,7 @@ app.get('/api/download/:uuid', async (c) => {
                 metadata = metadataString;
             }
         } catch (parseError) {
+            logError('Metadata Parsing', parseError);
             return c.json({ success: false, error: 'File metadata corrupted' }, 500);
         }
 
@@ -340,9 +352,16 @@ app.get('/api/download/:uuid', async (c) => {
 
         // Check if file has expired
         if (metadata.expiresAt && Date.now() > metadata.expiresAt) {
-            await redis.del(`file:${uuid}`);
-            await redis.del(`downloads:${uuid}`);
-            await env.R2_BUCKET.delete(uuid);
+            try {
+                await Promise.all([
+                    redis.del(`file:${uuid}`),
+                    redis.del(`downloads:${uuid}`),
+                    env.R2_BUCKET.delete(uuid)
+                ]);
+            } catch (cleanupError) {
+                logError('Expired File Cleanup', cleanupError);
+                // Continue with response even if cleanup fails
+            }
             return c.json({ success: false, error: 'File expired' }, 410);
         }
 
@@ -376,6 +395,7 @@ app.get('/api/download/:uuid', async (c) => {
         });
 
     } catch (error) {
+        logError('Download', error);
         return c.json({ success: false, error: 'Download failed - internal server error' }, 500);
    }
 });
@@ -421,16 +441,22 @@ app.post('/api/download/:uuid/increment', async (c) => {
         try {
             metadata = typeof metadataString === 'string' ? JSON.parse(metadataString) : metadataString;
         } catch (parseError) {
+            logError('Metadata Parsing on Increment', parseError);
             return c.json({ success: false, error: 'File metadata corrupted' }, 500);
         }
 
         // Check if file has expired
         if (metadata.expiresAt && Date.now() > metadata.expiresAt) {
-            await Promise.all([
-                redis.del(`file:${uuid}`),
-                redis.del(`downloads:${uuid}`),
-                env.R2_BUCKET.delete(uuid)
-            ]);
+            try {
+                await Promise.all([
+                    redis.del(`file:${uuid}`),
+                    redis.del(`downloads:${uuid}`),
+                    env.R2_BUCKET.delete(uuid)
+                ]);
+            } catch (cleanupError) {
+                logError('Expired File Cleanup on Increment', cleanupError);
+                // Continue with response even if cleanup fails
+            }
             return c.json({ 
                 success: false, 
                 error: 'File expired', 
@@ -447,11 +473,16 @@ app.post('/api/download/:uuid/increment', async (c) => {
 
         // Check if limit reached - delete file immediately
         if (currentDownloads >= downloadLimit) {
-            await Promise.all([
-                redis.del(`file:${uuid}`),
-                redis.del(downloadCounterKey),
-                env.R2_BUCKET.delete(uuid)
-            ]);
+            try {
+                await Promise.all([
+                    redis.del(`file:${uuid}`),
+                    redis.del(downloadCounterKey),
+                    env.R2_BUCKET.delete(uuid)
+                ]);
+            } catch (deleteError) {
+                logError('File Deletion after Download Limit', deleteError);
+                // Continue with response even if deletion fails
+            }
 
             return c.json({ 
                 success: true,
@@ -472,6 +503,7 @@ app.post('/api/download/:uuid/increment', async (c) => {
         });
 
     } catch (error) {
+        logError('Download Increment', error);
         return c.json({ success: false, error: 'Increment failed - internal server error' }, 500);
     }
 });
@@ -487,6 +519,7 @@ app.get('/api/cleanup', async (c) => {
             timestamp: Date.now()
         }, 200);
     } catch (error) {
+        logError('Manual Cleanup', error);
         return c.json({ success: false, error: 'Manual cleanup failed' }, 500);
     }
 });
@@ -503,9 +536,8 @@ export default {
  * Cleanup function
  */
 async function handleCleanup(env: Bindings): Promise<void> {
-    const redis = getRedisClient(env);
-
     try {
+        const redis = getRedisClient(env);
         let cursor = 0;
         const scanBatchSize = 100;
         let totalKeysScanned = 0;
@@ -513,24 +545,48 @@ async function handleCleanup(env: Bindings): Promise<void> {
         let totalRedisDownloadsDeleted = 0;
 
         do {
-            const [nextCursorStr, keys] = await redis.scan(cursor, { match: 'file:*', count: scanBatchSize });
-            cursor = parseInt(nextCursorStr, 10);
-            totalKeysScanned += keys.length;
+            try {
+                const [nextCursorStr, keys] = await redis.scan(cursor, { match: 'file:*', count: scanBatchSize });
+                cursor = parseInt(nextCursorStr, 10);
+                totalKeysScanned += keys.length;
 
-            for (const key of keys) {
-                const uuid = key.substring(5);
-                const metadataJson = await redis.get(key);
+                for (const key of keys) {
+                    try {
+                        const uuid = key.substring(5);
+                        const metadataJson = await redis.get(key);
 
-                if (!metadataJson) {
-                    await env.R2_BUCKET.delete(uuid);
-                    totalR2Deleted++;
-                    await redis.del(`downloads:${uuid}`);
-                    totalRedisDownloadsDeleted++;
+                        if (!metadataJson) {
+                            // File metadata expired, clean up associated resources
+                            try {
+                                await env.R2_BUCKET.delete(uuid);
+                                totalR2Deleted++;
+                            } catch (r2Error) {
+                                logError(`R2 Deletion for ${uuid}`, r2Error);
+                            }
+
+                            try {
+                                await redis.del(`downloads:${uuid}`);
+                                totalRedisDownloadsDeleted++;
+                            } catch (redisError) {
+                                logError(`Redis Downloads Deletion for ${uuid}`, redisError);
+                            }
+                        }
+                    } catch (keyError) {
+                        logError(`Processing key ${key}`, keyError);
+                        // Continue with next key
+                    }
                 }
+            } catch (scanError) {
+                logError('Redis Scan Operation', scanError);
+                // Break the scan loop on scan errors
+                break;
             }
         } while (cursor !== 0);
 
+        console.log(`Cleanup completed: scanned ${totalKeysScanned} keys, deleted ${totalR2Deleted} R2 objects, deleted ${totalRedisDownloadsDeleted} Redis counters`);
+
     } catch (error) {
-        // Silent fail in production
+        logError('Cleanup Function', error);
+        throw error; // Re-throw for proper error propagation
     }
 }
