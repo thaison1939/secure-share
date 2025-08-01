@@ -12,12 +12,11 @@
     "test": "jest",
     "test:coverage": "jest --coverage",
     "secret:put": "wrangler secret put",
-    "type-check": "tsc --noEmit",
-    "setup-secrets": "echo 'Run: npm run secret:put UPLOAD_AUTH_SECRET && npm run secret:put UPSTASH_REDIS_REST_URL && npm run secret:put UPSTASH_REDIS_REST_TOKEN'"
+    "type-check": "tsc --noEmit"
   },
   "dependencies": {
     "@upstash/redis": "^1.28.0",
-    "hono": "^3.12.0"
+    "hono": "^4.6.3"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240620.0",
