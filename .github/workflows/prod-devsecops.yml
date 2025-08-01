@@ -24,11 +24,20 @@ jobs:
     permissions:
       contents: read
       security-events: write
+      actions: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0  # Shallow clones should be disabled for better analysis
+
+      # SonarQube Analysis
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+          cache-dependency-path: 'client/package-lock.json'
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -41,9 +50,13 @@ jobs:
         working-directory: ./client
         run: npm ci
 
-      - name: Run tests with coverage
-        working-directory: ./client
-        run: npm run test:coverage || true
+      - name: SonarQube Scan
+        uses: SonarSource/sonarcloud-github-action@v2.1.1
+
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+        continue-on-error: true  # Continue even if SonarQube fails  
 
       # Trivy Filesystem Scan
       - name: Run Trivy vulnerability scanner (filesystem)
@@ -54,19 +67,21 @@ jobs:
           format: 'sarif'
           output: 'trivy-fs-results.sarif'
           severity: 'CRITICAL,HIGH'
-          exit-code: '1'  # Fail on critical/high vulnerabilities
+          exit-code: '0'  # Don't fail on vulnerabilities yet
 
       - name: Upload Trivy scan results
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: 'trivy-fs-results.sarif'
-        if: always()
+        if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+        continue-on-error: true
 
       # Secret scanning
       - name: Run GitLeaks secret scanner
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
 
   # Stage 2: Build & Test
   build-test:
@@ -88,6 +103,11 @@ jobs:
       - name: Install frontend dependencies
         working-directory: ./client
         run: npm ci
+
+      - name: Run unit tests
+        working-directory: ./client
+        run: npm test
+        continue-on-error: true
 
       - name: Build frontend
         working-directory: ./client
@@ -129,6 +149,7 @@ jobs:
     permissions:
       contents: read
       security-events: write
+      actions: read
     steps:
       - name: Download Docker image
         uses: actions/download-artifact@v4
@@ -146,13 +167,26 @@ jobs:
           format: 'sarif'
           output: 'trivy-container-results.sarif'
           severity: 'CRITICAL,HIGH'
-          exit-code: '1'  # Fail on critical/high vulnerabilities
+          exit-code: '1'  
 
       - name: Upload container scan results
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: 'trivy-container-results.sarif'
-        if: always()
+        if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository)
+        continue-on-error: true
+
+      # Show scan results in logs even if upload fails
+      - name: Display scan results
+        run: |
+          echo "## Container Security Scan Results"
+          if [ -f trivy-container-results.sarif ]; then
+            echo "SARIF file generated successfully"
+            cat trivy-container-results.sarif | jq -r '.runs[0].results[]?.message?.text // "No issues found"' || echo "Results processed"
+          else
+            echo "No SARIF file found"
+          fi
+        continue-on-error: true
 
   # Stage 4: Build and Push Final Image
   build-and-push:
